@@ -1,0 +1,176 @@
+import type { FastifyPluginAsync } from 'fastify'
+import { authenticate } from '../../middlewares/authenticate.js'
+import { z } from 'zod'
+
+const upsertScheduleSchema = z.object({
+  // Recebe array de horários (um por dia da semana ativo)
+  schedules: z.array(
+    z.object({
+      dayOfWeek: z.number().int().min(0).max(6),
+      openTime: z.string().regex(/^\d{2}:\d{2}$/, 'Formato HH:MM'),
+      closeTime: z.string().regex(/^\d{2}:\d{2}$/, 'Formato HH:MM'),
+      isActive: z.boolean().default(true),
+    }),
+  ),
+})
+
+const scheduleRoutes: FastifyPluginAsync = async (app) => {
+  // ─── GET /schedules ────────────────────────────────────────────────
+  app.get('/', { preHandler: [authenticate] }, async (request) => {
+    const schedules = await app.prisma.storeSchedule.findMany({
+      where: { storeId: request.user.storeId },
+      orderBy: { dayOfWeek: 'asc' },
+    })
+    return { data: schedules }
+  })
+
+  // ─── PUT /schedules (upsert em lote — substitui todos os horários) ─
+  app.put('/', { preHandler: [authenticate] }, async (request, reply) => {
+    const result = upsertScheduleSchema.safeParse(request.body)
+    if (!result.success) {
+      return reply.status(400).send({
+        error: 'Validation Error',
+        message: result.error.issues[0]?.message ?? 'Dados inválidos',
+        statusCode: 400,
+      })
+    }
+
+    const storeId = request.user.storeId
+
+    // Remove todos os horários existentes e recria
+    await app.prisma.storeSchedule.deleteMany({ where: { storeId } })
+
+    if (result.data.schedules.length > 0) {
+      await app.prisma.storeSchedule.createMany({
+        data: result.data.schedules.map((s) => ({ ...s, storeId })),
+      })
+    }
+
+    const schedules = await app.prisma.storeSchedule.findMany({
+      where: { storeId },
+      orderBy: { dayOfWeek: 'asc' },
+    })
+
+    // Recalcula isOpen com base nos novos horários usando timezone da loja
+    const storeData = await app.prisma.store.findUnique({ where: { id: storeId }, select: { timezone: true } })
+    const open = isStoreOpenNow(schedules, storeData?.timezone ?? 'America/Sao_Paulo')
+    await app.prisma.store.update({
+      where: { id: storeId },
+      data: { isOpen: open },
+    })
+
+    return { data: schedules }
+  })
+
+  // ─── PATCH /schedules/toggle (abrir/fechar manualmente) ───────────
+  app.patch('/toggle', { preHandler: [authenticate] }, async (request) => {
+    const store = await app.prisma.store.findUnique({
+      where: { id: request.user.storeId },
+      select: { isOpen: true },
+    })
+
+    const updated = await app.prisma.store.update({
+      where: { id: request.user.storeId },
+      data: { isOpen: !store?.isOpen },
+      select: { isOpen: true },
+    })
+
+    return { data: { isOpen: updated.isOpen } }
+  })
+
+  // ─── GET /schedules/status (verifica se loja está aberta agora) ────
+  app.get('/status', { preHandler: [authenticate] }, async (request) => {
+    const store = await app.prisma.store.findUnique({
+      where: { id: request.user.storeId },
+      select: { isOpen: true, timezone: true, acceptOrders: true },
+    })
+
+    const schedules = await app.prisma.storeSchedule.findMany({
+      where: { storeId: request.user.storeId, isActive: true },
+      orderBy: { dayOfWeek: 'asc' },
+    })
+
+    const shouldBeOpen = isStoreOpenNow(schedules, store?.timezone ?? 'America/Sao_Paulo')
+    const nextOpenTime = getNextOpenTime(schedules, store?.timezone ?? 'America/Sao_Paulo')
+
+    return {
+      data: {
+        isOpen: store?.isOpen ?? false,
+        shouldBeOpen,
+        acceptOrders: store?.acceptOrders ?? true,
+        nextOpenTime,
+      },
+    }
+  })
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers de lógica de horário
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface Schedule {
+  dayOfWeek: number
+  openTime: string
+  closeTime: string
+  isActive: boolean
+}
+
+export function isStoreOpenNow(schedules: Schedule[], timezone: string): boolean {
+  if (schedules.length === 0) return false
+
+  const now = new Date()
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    weekday: 'short',
+  })
+
+  const parts = formatter.formatToParts(now)
+  const weekdayStr = parts.find((p) => p.type === 'weekday')?.value ?? ''
+  const hour = parts.find((p) => p.type === 'hour')?.value ?? '00'
+  const minute = parts.find((p) => p.type === 'minute')?.value ?? '00'
+  const currentTime = `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`
+
+  const weekdayMap: Record<string, number> = {
+    Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+  }
+  const currentDay = weekdayMap[weekdayStr] ?? -1
+
+  const todaySchedule = schedules.find((s) => s.dayOfWeek === currentDay && s.isActive)
+  if (!todaySchedule) return false
+
+  return currentTime >= todaySchedule.openTime && currentTime < todaySchedule.closeTime
+}
+
+function getNextOpenTime(schedules: Schedule[], timezone: string): string | null {
+  if (schedules.length === 0) return null
+
+  const now = new Date()
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    weekday: 'short',
+  })
+  const weekdayStr = formatter.format(now)
+  const weekdayMap: Record<string, number> = {
+    Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+  }
+  const currentDay = weekdayMap[weekdayStr] ?? 0
+
+  const DAY_NAMES = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
+
+  // Procura o próximo dia com horário ativo (até 7 dias à frente)
+  for (let i = 1; i <= 7; i++) {
+    const nextDay = (currentDay + i) % 7
+    const schedule = schedules.find((s) => s.dayOfWeek === nextDay && s.isActive)
+    if (schedule) {
+      const dayLabel = i === 1 ? 'Amanhã' : DAY_NAMES[nextDay] ?? ''
+      return `${dayLabel} às ${schedule.openTime}`
+    }
+  }
+
+  return null
+}
+
+export default scheduleRoutes

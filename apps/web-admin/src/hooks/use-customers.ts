@@ -1,0 +1,156 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { api } from '@/lib/api'
+
+export interface CustomerSummary {
+  id: string
+  name: string
+  phone: string | null
+  email: string | null
+  cpf: string | null
+  createdAt: string
+  _count: { orders: number }
+}
+
+export interface CustomerAddress {
+  id: string
+  street: string
+  number: string
+  complement: string | null
+  district: string
+  city: string
+  state: string
+  zipCode: string
+  reference: string | null
+  isDefault: boolean
+}
+
+export interface CustomerOrderItem {
+  name: string
+  quantity: number
+  price: number
+}
+
+export interface CustomerOrder {
+  id: string
+  orderNumber: number
+  type: string
+  status: string
+  paymentMethod: string | null
+  total: number
+  createdAt: string
+  items: CustomerOrderItem[]
+}
+
+export interface CustomerStats {
+  totalOrders: number
+  completedOrders: number
+  totalSpent: number
+  avgTicket: number
+}
+
+export interface CustomerDetail extends CustomerSummary {
+  notes: string | null
+  addresses: CustomerAddress[]
+  orders: CustomerOrder[]
+  stats: CustomerStats
+}
+
+export interface CustomersMeta {
+  total: number
+  page: number
+  take: number
+}
+
+export interface AddressInput {
+  street: string
+  number: string
+  complement?: string
+  district: string
+  city: string
+  state: string
+  zipCode?: string
+  reference?: string
+  isDefault?: boolean
+}
+
+// ─── Queries ──────────────────────────────────────────────────────────────────
+
+export function useCustomers(search?: string, page = 1) {
+  return useQuery({
+    queryKey: ['customers', search, page],
+    queryFn: () => {
+      const q = new URLSearchParams()
+      if (search) q.set('search', search)
+      q.set('page', String(page))
+      return api.get<{ data: CustomerSummary[]; meta: CustomersMeta }>(`/customers?${q}`).then((r) => r.data)
+    },
+  })
+}
+
+export function useCustomer(id: string | null) {
+  return useQuery({
+    queryKey: ['customer', id],
+    queryFn: () => api.get<{ data: CustomerDetail }>(`/customers/${id}`).then((r) => r.data.data),
+    enabled: !!id,
+  })
+}
+
+// ─── Mutations ────────────────────────────────────────────────────────────────
+
+export function useCreateCustomer() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: { name: string; phone?: string; email?: string; cpf?: string; notes?: string }) =>
+      api.post<{ data: CustomerSummary }>('/customers', data).then((r) => r.data.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['customers'] }),
+  })
+}
+
+export function useUpdateCustomer() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string; name?: string; phone?: string; email?: string; cpf?: string; notes?: string }) =>
+      api.patch(`/customers/${id}`, data),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ['customers'] })
+      qc.invalidateQueries({ queryKey: ['customer', vars.id] })
+    },
+  })
+}
+
+export function useDeleteCustomer() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/customers/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['customers'] }),
+  })
+}
+
+// ─── Address mutations ────────────────────────────────────────────────────────
+
+export function useCreateAddress() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ customerId, ...data }: AddressInput & { customerId: string }) =>
+      api.post<{ data: CustomerAddress }>(`/customers/${customerId}/addresses`, data).then((r) => r.data.data),
+    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: ['customer', vars.customerId] }),
+  })
+}
+
+export function useUpdateAddress() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ customerId, addressId, ...data }: Partial<AddressInput> & { customerId: string; addressId: string }) =>
+      api.patch<{ data: CustomerAddress }>(`/customers/${customerId}/addresses/${addressId}`, data).then((r) => r.data.data),
+    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: ['customer', vars.customerId] }),
+  })
+}
+
+export function useDeleteAddress() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ customerId, addressId }: { customerId: string; addressId: string }) =>
+      api.delete(`/customers/${customerId}/addresses/${addressId}`),
+    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: ['customer', vars.customerId] }),
+  })
+}

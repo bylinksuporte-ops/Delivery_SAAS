@@ -1,0 +1,678 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────
+// LOJA (TENANT)
+// ─────────────────────────────────────────
+
+model Store {
+  id          String  @id @default(uuid())
+  name        String
+  slug        String  @unique // ex: minha-loja
+  logoUrl     String?
+  phone       String?
+  address     String?
+  number      String?
+  complement  String?
+  district    String?
+  city        String?
+  state       String?
+  zipCode     String?
+  lat         Float?
+  lng         Float?
+  instagram   String?
+  facebook    String?
+  whatsapp    String?
+  description String?
+  status      StoreStatus @default(ACTIVE)
+  suspendedAt DateTime?
+  suspendReason String?
+  isOpen      Boolean @default(false)
+  acceptOrders Boolean @default(true)
+  timezone    String  @default("America/Sao_Paulo")
+  minOrderValue Decimal @default(0)
+  estimatedTime Int    @default(45) // minutos
+
+  // Gateway de pagamento
+  asaasApiKey  String?
+  asaasSandbox Boolean @default(true)
+
+  // Evolution API (WhatsApp)
+  evolutionApiUrl  String?
+  evolutionApiKey  String?
+  evolutionInstance String?
+
+  // Aparência da vitrine
+  primaryColor  String  @default("#f97316")
+  layoutStyle   String  @default("grid")
+  bannerUrl     String?
+
+  // Integrações de marketing
+  facebookPixelId  String?
+  googleTagManagerId String?
+
+  // Avisos
+  storeNotice      String?   // aviso público no cardápio
+  storeNoticeType  String?   // "info" | "warning" | "success"
+
+  // Configurações de som (admin)
+  orderSoundUrl    String?   // URL do som customizado para novos pedidos
+
+  // Domínio próprio
+  mpAccessToken    String?
+  mpPublicKey      String?
+  mpSandbox        Boolean @default(true)
+
+  // Domínio próprio
+  customDomain     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users         User[]
+  categories    Category[]
+  products      Product[]
+  orders        Order[]
+  customers     Customer[]
+  deliveryAreas DeliveryArea[]
+  coupons       Coupon[]
+  deliverymen   Deliveryman[]
+  tables        Table[]
+  paymentMethods PaymentMethod[]
+  schedules     StoreSchedule[]
+  cashback          CashbackConfig?
+  cashRegisters     CashRegister[]
+  automationConfig  AutomationConfig?
+  conversations     Conversation[]
+  reviews           OrderReview[]
+  loyaltyConfig     LoyaltyConfig?
+  customerLoyalties CustomerLoyalty[]
+  raffles           Raffle[]
+  internalNotices   InternalNotice[]
+}
+
+// ─────────────────────────────────────────
+// SUPER ADMIN (SaaS owner)
+// ─────────────────────────────────────────
+
+model SuperAdmin {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────
+// USUÁRIOS DO SISTEMA
+// ─────────────────────────────────────────
+
+model User {
+  id        String   @id @default(uuid())
+  storeId   String
+  name      String
+  email     String   @unique
+  password  String
+  role      Role     @default(OPERATOR)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+}
+
+enum Role {
+  ADMIN
+  OPERATOR
+  DELIVERY
+}
+
+enum StoreStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+// ─────────────────────────────────────────
+// CARDÁPIO
+// ─────────────────────────────────────────
+
+model Category {
+  id           String       @id @default(uuid())
+  storeId      String
+  name         String
+  position     Int          @default(0)
+  isActive     Boolean      @default(true)
+  availableFor AvailableFor @default(BOTH)
+  createdAt    DateTime     @default(now())
+
+  store    Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  products Product[]
+}
+
+enum AvailableFor {
+  DELIVERY
+  PICKUP
+  BOTH
+}
+
+model Product {
+  id            String   @id @default(uuid())
+  storeId       String
+  categoryId    String
+  name          String
+  description   String?
+  price         Decimal
+  imageUrl      String?
+  isActive      Boolean  @default(true)
+  position      Int      @default(0)
+  tags          String[] // vegano, destaque, novo, etc.
+  stockControl  Boolean  @default(false)
+  stockQty      Int?
+  minStock      Int?
+  avgCost       Decimal?
+  availableFor  AvailableFor @default(BOTH)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  store      Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  category   Category     @relation(fields: [categoryId], references: [id])
+  addonGroups AddonGroup[]
+  orderItems  OrderItem[]
+}
+
+model AddonGroup {
+  id        String  @id @default(uuid())
+  productId String
+  name      String
+  min       Int     @default(0)
+  max       Int     @default(1)
+  required  Boolean @default(false)
+  position  Int     @default(0)
+
+  product Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  options AddonOption[]
+}
+
+model AddonOption {
+  id           String  @id @default(uuid())
+  addonGroupId String
+  name         String
+  price        Decimal @default(0)
+  isActive     Boolean @default(true)
+  position     Int     @default(0)
+
+  group AddonGroup @relation(fields: [addonGroupId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────
+// CLIENTES
+// ─────────────────────────────────────────
+
+model Customer {
+  id        String   @id @default(uuid())
+  storeId   String
+  name      String
+  phone     String?
+  email     String?
+  cpf       String?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  store     Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  addresses CustomerAddress[]
+  orders    Order[]
+  loyalty   CustomerLoyalty[]
+  raffleEntries RaffleEntry[]
+
+  @@unique([storeId, phone])
+}
+
+model CustomerAddress {
+  id          String  @id @default(uuid())
+  customerId  String
+  street      String
+  number      String
+  complement  String?
+  district    String
+  city        String
+  state       String
+  zipCode     String
+  lat         Float?
+  lng         Float?
+  isDefault   Boolean @default(false)
+  reference   String?
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────
+// PEDIDOS
+// ─────────────────────────────────────────
+
+model Order {
+  id            String        @id @default(uuid())
+  storeId       String
+  customerId    String?
+  orderNumber   Int
+  type          OrderType
+  status        OrderStatus   @default(PENDING)
+  paymentStatus PaymentStatus @default(PENDING)
+  paymentMethod String?
+  subtotal      Decimal
+  deliveryFee   Decimal       @default(0)
+  discount      Decimal       @default(0)
+  total         Decimal
+  notes         String?
+  scheduledTo   DateTime?
+  cancelReason  String?
+  address       Json?         // snapshot do endereço
+  deliverymanId String?
+  couponId      String?
+  tableId       String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  store       Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer    Customer?    @relation(fields: [customerId], references: [id])
+  deliveryman Deliveryman? @relation(fields: [deliverymanId], references: [id])
+  table       Table?       @relation(fields: [tableId], references: [id])
+  items       OrderItem[]
+  payments    Payment[]
+  review      OrderReview?
+
+  @@unique([storeId, orderNumber])
+}
+
+enum OrderType {
+  DELIVERY
+  PICKUP
+  TABLE
+  COUNTER
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  IN_PRODUCTION
+  OUT_FOR_DELIVERY
+  READY_FOR_PICKUP
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  PARTIAL
+  REFUNDED
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  orderId   String
+  productId String
+  name      String  // snapshot
+  price     Decimal // snapshot
+  quantity  Int
+  notes     String?
+  addons    Json    @default("[]") // snapshot dos complementos
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+}
+
+// ─────────────────────────────────────────
+// PAGAMENTOS
+// ─────────────────────────────────────────
+
+model Payment {
+  id            String        @id @default(uuid())
+  orderId       String
+  method        String        // PIX, CREDIT_CARD, CASH...
+  amount        Decimal
+  status        PaymentStatus @default(PENDING)
+  gatewayId     String?       // ID externo (Asaas, Pagar.me)
+  gatewayData   Json?         // dados do gateway (QR code, etc.)
+  paidAt        DateTime?
+  createdAt     DateTime      @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model PaymentMethod {
+  id       String  @id @default(uuid())
+  storeId  String
+  type     String  // PIX, CREDIT_CARD, DEBIT_CARD, CASH, PICPAY
+  label    String  // nome exibido ao cliente
+  isActive Boolean @default(true)
+  config   Json?   // chave pix, credenciais, etc.
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────
+// MESAS / SALÃO
+// ─────────────────────────────────────────
+
+model Table {
+  id        String   @id @default(uuid())
+  storeId   String
+  number    Int      // número da mesa (1, 2, 3...)
+  label     String?  // nome personalizado (ex: "Varanda 1")
+  capacity  Int      @default(4)
+  isActive  Boolean  @default(true)
+  qrToken   String   @unique @default(uuid()) // token no QR Code
+  createdAt DateTime @default(now())
+
+  store  Store   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  orders Order[]
+
+  @@unique([storeId, number])
+}
+
+// ─────────────────────────────────────────
+// ENTREGADORES
+// ─────────────────────────────────────────
+
+model Deliveryman {
+  id         String   @id @default(uuid())
+  storeId    String
+  name       String
+  phone      String?
+  vehicle    String?
+  isActive   Boolean  @default(true)
+  commission Decimal  @default(0) // % ou valor fixo
+  createdAt  DateTime @default(now())
+
+  store  Store   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  orders Order[]
+}
+
+// ─────────────────────────────────────────
+// ÁREAS E TAXAS DE ENTREGA
+// ─────────────────────────────────────────
+
+model DeliveryArea {
+  id        String   @id @default(uuid())
+  storeId   String
+  name      String?
+  type      AreaType
+  fee       Decimal
+  minOrder  Decimal  @default(0)
+  freeFrom  Decimal? // entrega grátis a partir de R$
+  polygon   Json?    // GeoJSON para área poligonal
+  radiusKm  Float?   // para tipo RADIUS
+  district  String?  // para tipo DISTRICT
+  isActive  Boolean  @default(true)
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+}
+
+enum AreaType {
+  POLYGON
+  RADIUS
+  DISTRICT
+}
+
+// ─────────────────────────────────────────
+// HORÁRIOS DE FUNCIONAMENTO
+// ─────────────────────────────────────────
+
+model StoreSchedule {
+  id        String  @id @default(uuid())
+  storeId   String
+  dayOfWeek Int     // 0=Dom, 1=Seg ... 6=Sab
+  openTime  String  // "08:00"
+  closeTime String  // "22:00"
+  isActive  Boolean @default(true)
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────
+// CUPONS E PROMOÇÕES
+// ─────────────────────────────────────────
+
+model Coupon {
+  id         String     @id @default(uuid())
+  storeId    String
+  code       String
+  type       CouponType
+  value      Decimal
+  minOrder   Decimal    @default(0)
+  maxUses    Int?
+  usedCount  Int        @default(0)
+  expiresAt  DateTime?
+  isActive   Boolean    @default(true)
+  createdAt  DateTime   @default(now())
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, code])
+}
+
+enum CouponType {
+  PERCENT_DISCOUNT
+  FIXED_DISCOUNT
+  FREE_DELIVERY
+  PRODUCT_GIFT
+  ITEM_DISCOUNT
+}
+
+// ─────────────────────────────────────────
+// CAIXA
+// ─────────────────────────────────────────
+
+model CashRegister {
+  id              String           @id @default(uuid())
+  storeId         String
+  userId          String
+  status          CashRegisterStatus @default(OPEN)
+  openingBalance  Decimal          @default(0)
+  closingBalance  Decimal?
+  expectedBalance Decimal?
+  notes           String?
+  openedAt        DateTime         @default(now())
+  closedAt        DateTime?
+
+  store        Store              @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  transactions CashTransaction[]
+}
+
+model CashTransaction {
+  id             String              @id @default(uuid())
+  cashRegisterId String
+  storeId        String
+  type           CashTransactionType
+  amount         Decimal
+  description    String
+  createdAt      DateTime            @default(now())
+
+  cashRegister CashRegister @relation(fields: [cashRegisterId], references: [id], onDelete: Cascade)
+}
+
+enum CashRegisterStatus {
+  OPEN
+  CLOSED
+}
+
+enum CashTransactionType {
+  DEPOSIT    // Suprimento
+  WITHDRAWAL // Sangria
+}
+
+// ─────────────────────────────────────────
+// CASHBACK
+// ─────────────────────────────────────────
+
+model CashbackConfig {
+  id             String  @id @default(uuid())
+  storeId        String  @unique
+  isActive       Boolean @default(false)
+  percentBack    Decimal @default(5) // % de retorno
+  minOrderValue  Decimal @default(0)
+  expirationDays Int     @default(30)
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────
+// AUTOMAÇÃO / ATENDENTE IA
+// ─────────────────────────────────────────
+
+model AutomationConfig {
+  id           String   @id @default(uuid())
+  storeId      String   @unique
+  isEnabled    Boolean  @default(false)
+  aiProvider   String   @default("claude")
+  aiApiKey     String?
+  aiModel      String   @default("claude-haiku-4-5-20251001")
+  systemPrompt String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+}
+
+model Conversation {
+  id            String             @id @default(uuid())
+  storeId       String
+  customerPhone String
+  customerName  String?
+  status        ConversationStatus @default(ACTIVE)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  store    Store                 @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  messages ConversationMessage[]
+
+  @@unique([storeId, customerPhone])
+}
+
+model ConversationMessage {
+  id             String   @id @default(uuid())
+  conversationId String
+  role           String
+  content        String
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+}
+
+enum ConversationStatus {
+  ACTIVE
+  CLOSED
+}
+
+// ─────────────────────────────────────────
+// AVALIAÇÕES
+// ─────────────────────────────────────────
+
+model OrderReview {
+  id        String   @id @default(uuid())
+  orderId   String   @unique
+  storeId   String
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────
+// PROGRAMA DE FIDELIDADE (PONTOS)
+// ─────────────────────────────────────────
+
+model LoyaltyConfig {
+  id             String  @id @default(uuid())
+  storeId        String  @unique
+  isEnabled      Boolean @default(false)
+  pointsPerReal  Decimal @default(1)   // pontos ganhos por R$1
+  pointsToReal   Decimal @default(100) // quantos pontos = R$1
+  minRedeemPoints Int    @default(100)
+  expirationDays Int     @default(365)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+}
+
+model CustomerLoyalty {
+  id          String   @id @default(uuid())
+  storeId     String
+  customerId  String
+  points      Int      @default(0)
+  totalEarned Int      @default(0)
+  totalRedeemed Int    @default(0)
+  updatedAt   DateTime @updatedAt
+
+  store    Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, customerId])
+}
+
+// ─────────────────────────────────────────
+// SISTEMA DE SORTEIOS
+// ─────────────────────────────────────────
+
+model Raffle {
+  id          String       @id @default(uuid())
+  storeId     String
+  title       String
+  description String?
+  prize       String
+  imageUrl    String?
+  status      RaffleStatus @default(OPEN)
+  drawAt      DateTime?
+  winnerId    String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  store   Store         @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  entries RaffleEntry[]
+}
+
+model RaffleEntry {
+  id         String   @id @default(uuid())
+  raffleId   String
+  customerId String
+  phone      String
+  name       String
+  createdAt  DateTime @default(now())
+
+  raffle   Raffle   @relation(fields: [raffleId], references: [id], onDelete: Cascade)
+  customer Customer? @relation(fields: [customerId], references: [id])
+}
+
+enum RaffleStatus {
+  OPEN
+  CLOSED
+  DRAWN
+}
+
+// ─────────────────────────────────────────
+// AVISOS INTERNOS PARA A EQUIPE
+// ─────────────────────────────────────────
+
+model InternalNotice {
+  id        String   @id @default(uuid())
+  storeId   String
+  message   String
+  type      String   @default("info") // "info" | "warning" | "urgent"
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  expiresAt DateTime?
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+}
