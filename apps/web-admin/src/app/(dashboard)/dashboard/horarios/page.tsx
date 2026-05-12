@@ -48,6 +48,7 @@ export default function HorariosPage() {
 
   const [days, setDays] = useState<DayState[]>(buildDefaultDays())
   const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState('')
 
   // Inicializa os dias quando os dados chegam da API
   useEffect(() => {
@@ -74,14 +75,29 @@ export default function HorariosPage() {
   }
 
   async function handleSave() {
-    const activeDays = days.filter((d) => d.isActive)
-    await saveSchedules.mutateAsync(
-      activeDays.map(({ dayOfWeek, openTime, closeTime, isActive }) => ({
-        dayOfWeek, openTime, closeTime, isActive,
-      })),
-    )
-    setSaved(true)
-    setTimeout(() => setSaved(false), 3000)
+    setSaveError('')
+
+    // Valida horários dos dias ativos
+    const invalidDay = days.find((d) => d.isActive && d.closeTime <= d.openTime)
+    if (invalidDay) {
+      setSaveError(
+        `Horário inválido em ${DAY_NAMES[invalidDay.dayOfWeek]}: o fechamento deve ser posterior à abertura.`,
+      )
+      return
+    }
+
+    try {
+      // Envia TODOS os dias (ativos e inativos) para preservar os horários configurados
+      await saveSchedules.mutateAsync(
+        days.map(({ dayOfWeek, openTime, closeTime, isActive }) => ({
+          dayOfWeek, openTime, closeTime, isActive,
+        })),
+      )
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+    } catch (err: any) {
+      setSaveError(err?.response?.data?.message ?? 'Erro ao salvar horários. Tente novamente.')
+    }
   }
 
   if (isLoading) {
@@ -224,6 +240,13 @@ export default function HorariosPage() {
             </div>
           ))}
         </div>
+
+        {saveError && (
+          <div className="flex items-start gap-2 rounded-xl bg-red-50 border border-red-200 px-3 py-2.5">
+            <AlertCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
+            <p className="text-xs text-red-700">{saveError}</p>
+          </div>
+        )}
 
         <button
           onClick={handleSave}

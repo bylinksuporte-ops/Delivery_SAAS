@@ -27,21 +27,23 @@ const CANCEL_REASONS = [
 interface Props {
   order: Order | null
   onClose: () => void
+  initialCancelling?: boolean
 }
 
-export function OrderModal({ order, onClose }: Props) {
+export function OrderModal({ order, onClose, initialCancelling = false }: Props) {
   const updateStatus = useUpdateOrderStatus()
   const assignDeliveryman = useAssignDeliveryman()
   const { data: deliverymen = [] } = useDeliverymen()
   const { store } = useAuthStore()
 
-  const [cancelling, setCancelling] = useState(false)
+  const [cancelling, setCancelling] = useState(initialCancelling)
   const [cancelReason, setCancelReason] = useState('')
   const [linkCopied, setLinkCopied] = useState(false)
 
   useEffect(() => {
     if (!order) { setCancelling(false); setCancelReason(''); setLinkCopied(false) }
-  }, [order])
+    else { setCancelling(initialCancelling) }
+  }, [order, initialCancelling])
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
@@ -71,7 +73,8 @@ export function OrderModal({ order, onClose }: Props) {
 
   async function handleCopyTrackLink() {
     if (!order || !store) return
-    const url = `${window.location.origin.replace('3001', '3000')}/${store.slug}/pedido/${order.id}`
+    const storeOrigin = process.env.NEXT_PUBLIC_STORE_URL ?? window.location.origin
+    const url = `${storeOrigin}/${store.slug}/pedido/${order.id}`
     await navigator.clipboard.writeText(url)
     setLinkCopied(true)
     setTimeout(() => setLinkCopied(false), 2000)
@@ -102,7 +105,7 @@ export function OrderModal({ order, onClose }: Props) {
               <p className="text-xs text-muted-foreground mb-0.5">Tipo</p>
               <p className="text-sm font-semibold flex items-center gap-1.5">
                 {order.type === 'DELIVERY' ? <Bike className="h-3.5 w-3.5 text-primary" /> : <Home className="h-3.5 w-3.5 text-primary" />}
-                {order.type === 'DELIVERY' ? 'Entrega' : 'Retirada'}
+                {order.type === 'DELIVERY' ? 'Entrega' : order.type === 'TABLE' ? 'Mesa' : order.type === 'COUNTER' ? 'Balcão' : 'Retirada'}
               </p>
             </div>
             <div className="rounded-xl bg-muted/50 px-3 py-2.5">
@@ -185,7 +188,9 @@ export function OrderModal({ order, onClose }: Props) {
                   )}
                   {item.notes && <p className="text-xs text-muted-foreground italic">{item.notes}</p>}
                 </div>
-                <span className="shrink-0 font-medium">{currency(item.price * item.quantity)}</span>
+                <span className="shrink-0 font-medium">
+                  {currency((item.price + item.addons.reduce((s, a) => s + a.price, 0)) * item.quantity)}
+                </span>
               </div>
             ))}
             <div className="border-t pt-2 space-y-1">

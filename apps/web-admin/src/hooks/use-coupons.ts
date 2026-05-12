@@ -18,7 +18,7 @@ export const COUPON_TYPE_LABELS: Record<string, string> = {
   PERCENT_DISCOUNT: '% Desconto',
   FIXED_DISCOUNT:   'R$ Desconto',
   FREE_DELIVERY:    'Frete Grátis',
-  ITEM_DISCOUNT:    'Desconto no Item',
+  // ITEM_DISCOUNT removido — não implementado na engine de pedidos
 }
 
 export function useCoupons() {

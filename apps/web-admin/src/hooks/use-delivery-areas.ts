@@ -13,6 +13,17 @@ export interface DeliveryArea {
   isActive: boolean
 }
 
+export type DeliveryAreaInput = {
+  type: 'DISTRICT' | 'RADIUS' | 'POLYGON'
+  name?: string | null
+  district?: string | null
+  radiusKm?: number | null
+  fee: number
+  minOrder: number
+  freeFrom?: number | null
+  isActive: boolean
+}
+
 export function useDeliveryAreas() {
   return useQuery({
     queryKey: ['delivery-areas'],
@@ -23,7 +34,7 @@ export function useDeliveryAreas() {
 export function useCreateDeliveryArea() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data: Omit<DeliveryArea, 'id'>) =>
+    mutationFn: (data: DeliveryAreaInput) =>
       api.post<{ data: DeliveryArea }>('/delivery-areas', data).then((r) => r.data.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['delivery-areas'] }),
   })

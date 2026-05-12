@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Package, AlertTriangle, Check, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Package, AlertTriangle, Check, ToggleLeft, ToggleRight, X } from 'lucide-react'
 import { useStockProducts, useStockAlerts, useUpdateStock } from '@/hooks/use-stock'
 import { currency } from '@/lib/utils'
 
@@ -18,14 +18,15 @@ export default function EstoquePage() {
   function openEdit(id: string, qty: number | null, min: number | null) {
     setEditingId(id)
     setEditQty(qty != null ? String(qty) : '0')
-    setEditMin(min != null ? String(min) : '0')
+    setEditMin(min != null ? String(min) : '')
   }
 
   async function saveEdit(id: string) {
+    const parsedMin = editMin.trim() === '' ? null : parseInt(editMin)
     await updateStock.mutateAsync({
       id,
       stockQty: parseInt(editQty) || 0,
-      minStock: parseInt(editMin) || 0,
+      minStock: parsedMin !== null && isNaN(parsedMin) ? null : parsedMin,
     })
     setEditingId(null)
   }
@@ -119,6 +120,8 @@ export default function EstoquePage() {
                             type="number" min="0"
                             value={editQty}
                             onChange={(e) => setEditQty(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(p.id); if (e.key === 'Escape') setEditingId(null) }}
+                            autoFocus
                             className="w-16 rounded-lg border px-2 py-1 text-center text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                           />
                         ) : (
@@ -138,8 +141,10 @@ export default function EstoquePage() {
                         {editingId === p.id ? (
                           <input
                             type="number" min="0"
+                            placeholder="—"
                             value={editMin}
                             onChange={(e) => setEditMin(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(p.id); if (e.key === 'Escape') setEditingId(null) }}
                             className="w-16 rounded-lg border px-2 py-1 text-center text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                           />
                         ) : (
@@ -176,12 +181,21 @@ export default function EstoquePage() {
                             </button>
                           </div>
                         ) : (
-                          <button
-                            onClick={() => openEdit(p.id, p.stockQty, p.minStock)}
-                            className="rounded-lg border px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-muted transition"
-                          >
-                            Ajustar
-                          </button>
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              onClick={() => openEdit(p.id, p.stockQty, p.minStock)}
+                              className="rounded-lg border px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-muted transition"
+                            >
+                              Ajustar
+                            </button>
+                            <button
+                              onClick={() => updateStock.mutate({ id: p.id, stockControl: false })}
+                              title="Desativar controle de estoque"
+                              className="flex h-7 w-7 items-center justify-center rounded-lg border text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>

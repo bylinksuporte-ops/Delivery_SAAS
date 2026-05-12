@@ -40,7 +40,7 @@ export function OrderCard({ order, onAdvance, onCancel, onClick }: Props) {
           <span className="font-bold text-foreground">#{order.orderNumber}</span>
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
             {order.type === 'DELIVERY' ? <Bike className="h-3.5 w-3.5" /> : <Home className="h-3.5 w-3.5" />}
-            {order.type === 'DELIVERY' ? 'Entrega' : 'Retirada'}
+            {order.type === 'DELIVERY' ? 'Entrega' : order.type === 'TABLE' ? 'Mesa' : order.type === 'COUNTER' ? 'Balcão' : 'Retirada'}
           </span>
         </div>
         <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-semibold ${status.color}`}>

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useCashRegisterHistory, useCashRegisterDetail } from '@/hooks/use-cash-register'
+import { useAuthStore } from '@/store/auth'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { Header } from '@/components/layout/header'
@@ -77,6 +78,7 @@ ${data.notes ? `<hr class="sep"/><p>Obs: ${data.notes}</p>` : ''}
 // ─── Detail Modal ─────────────────────────────────────────────────────────────
 function DetailModal({ id, onClose }: { id: string; onClose: () => void }) {
   const { data, isLoading } = useCashRegisterDetail(id)
+  const { store } = useAuthStore()
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -86,7 +88,7 @@ function DetailModal({ id, onClose }: { id: string; onClose: () => void }) {
           <div className="flex items-center gap-2">
             {data && (
               <button
-                onClick={() => printRegister(data)}
+                onClick={() => printRegister(data, store?.name)}
                 className="flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted transition"
               >
                 <Printer className="h-3.5 w-3.5" /> Imprimir
@@ -239,7 +241,7 @@ function DailyMovementsTab() {
             { label: 'Receita total', value: fmt(totals.revenue), icon: TrendingUp, color: 'text-green-600', bg: 'bg-green-50' },
             { label: 'Suprimentos', value: fmt(totals.deposits), icon: ArrowUpCircle, color: 'text-blue-600', bg: 'bg-blue-50' },
             { label: 'Sangrias', value: fmt(totals.withdrawals), icon: ArrowDownCircle, color: 'text-red-600', bg: 'bg-red-50' },
-            { label: 'Saldo líquido', value: fmt(totals.net), icon: TrendingDown, color: totals.net >= 0 ? 'text-green-600' : 'text-red-600', bg: totals.net >= 0 ? 'bg-green-50' : 'bg-red-50' },
+            { label: 'Saldo líquido', value: fmt(totals.net), icon: totals.net >= 0 ? TrendingUp : TrendingDown, color: totals.net >= 0 ? 'text-green-600' : 'text-red-600', bg: totals.net >= 0 ? 'bg-green-50' : 'bg-red-50' },
           ].map(({ label, value, icon: Icon, color, bg }) => (
             <div key={label} className="rounded-xl border bg-card p-3 flex items-center gap-3">
               <div className={`h-8 w-8 rounded-lg ${bg} flex items-center justify-center shrink-0`}>

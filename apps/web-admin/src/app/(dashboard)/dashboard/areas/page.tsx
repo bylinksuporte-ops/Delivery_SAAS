@@ -8,6 +8,7 @@ import {
   useUpdateDeliveryArea,
   useDeleteDeliveryArea,
   type DeliveryArea,
+  type DeliveryAreaInput,
 } from '@/hooks/use-delivery-areas'
 import { currency } from '@/lib/utils'
 
@@ -92,26 +93,39 @@ export default function AreasPage() {
     if (form.type === 'DISTRICT' && !form.district.trim()) { setFormError('Nome do bairro é obrigatório'); return }
     if (form.type === 'RADIUS' && !form.radiusKm.trim()) { setFormError('Raio em km é obrigatório'); return }
 
-    const payload = {
-      type: form.type,
-      name: form.name.trim() || undefined,
-      district: form.type === 'DISTRICT' ? form.district.trim() : undefined,
-      radiusKm: form.type === 'RADIUS' ? parseFloat(form.radiusKm) : undefined,
-      fee,
-      minOrder: parseFloat(form.minOrder) || 0,
-      freeFrom: form.freeFrom ? parseFloat(form.freeFrom) : undefined,
-      isActive: true,
-    }
+    const freeFromVal = form.freeFrom.trim() ? parseFloat(form.freeFrom) : null
+    const nameVal = form.name.trim() || null
 
     try {
       if (editingId) {
-        await updateArea.mutateAsync({ id: editingId, ...payload })
+        // No edit: envia null explicitamente para limpar campos opcionais
+        await updateArea.mutateAsync({
+          id: editingId,
+          type: form.type,
+          name: nameVal,
+          district: form.type === 'DISTRICT' ? form.district.trim() : null,
+          radiusKm: form.type === 'RADIUS' ? parseFloat(form.radiusKm) : null,
+          fee,
+          minOrder: parseFloat(form.minOrder) || 0,
+          freeFrom: freeFromVal,
+          // isActive não é alterado pelo form — use o toggle na lista
+        })
       } else {
-        await createArea.mutateAsync(payload as Parameters<typeof createArea.mutateAsync>[0])
+        const payload: DeliveryAreaInput = {
+          type: form.type,
+          name: nameVal,
+          district: form.type === 'DISTRICT' ? form.district.trim() : null,
+          radiusKm: form.type === 'RADIUS' ? parseFloat(form.radiusKm) : null,
+          fee,
+          minOrder: parseFloat(form.minOrder) || 0,
+          freeFrom: freeFromVal,
+          isActive: true,
+        }
+        await createArea.mutateAsync(payload)
       }
       cancelForm()
-    } catch {
-      setFormError('Erro ao salvar área. Tente novamente.')
+    } catch (err: any) {
+      setFormError(err?.response?.data?.message ?? 'Erro ao salvar área. Tente novamente.')
     }
   }
 
@@ -275,7 +289,11 @@ export default function AreasPage() {
                   className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition">
                   <Pencil className="h-3.5 w-3.5" />
                 </button>
-                <button onClick={() => deleteArea.mutate(area.id)}
+                <button
+                  onClick={() => {
+                    if (confirm(`Excluir a área "${area.district ?? area.name ?? area.type}"? Esta ação não pode ser desfeita.`))
+                      deleteArea.mutate(area.id)
+                  }}
                   className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition">
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>

@@ -42,6 +42,7 @@ export default function PedidosPage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['internal-notices'] }); setNoticeMsg(''); setShowNoticeInput(false) },
   })
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
+  const [openingCancellation, setOpeningCancellation] = useState(false)
   const [newOrderCount, setNewOrderCount] = useState(0)
 
   const socketRef = useRef<Socket | null>(null)
@@ -118,6 +119,7 @@ export default function PedidosPage() {
   }, [updateStatus])
 
   const handleCancel = useCallback((order: Order) => {
+    setOpeningCancellation(true)
     setSelectedOrder(order)
   }, [])
 
@@ -268,7 +270,8 @@ export default function PedidosPage() {
       {/* Modal de detalhes */}
       <OrderModal
         order={selectedOrder}
-        onClose={() => setSelectedOrder(null)}
+        onClose={() => { setSelectedOrder(null); setOpeningCancellation(false) }}
+        initialCancelling={openingCancellation}
       />
     </div>
   )

@@ -51,7 +51,7 @@ export function useUpdateStock() {
       id: string
       stockQty?: number
       stockControl?: boolean
-      minStock?: number
+      minStock?: number | null
     }) => api.patch(`/products/${id}/stock`, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['stock'] })

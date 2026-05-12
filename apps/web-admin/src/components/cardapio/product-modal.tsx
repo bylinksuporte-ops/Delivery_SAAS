@@ -129,6 +129,7 @@ export function ProductModal({ open, onClose, categoryId, product }: Props) {
   const [availableFor, setAvailableFor] = useState<'DELIVERY' | 'PICKUP' | 'BOTH'>('BOTH')
   const [stockControl, setStockControl] = useState(false)
   const [stockQty, setStockQty] = useState('')
+  const [minStock, setMinStock] = useState('')
   const [avgCost, setAvgCost] = useState('')
   const [error, setError] = useState('')
 
@@ -142,11 +143,12 @@ export function ProductModal({ open, onClose, categoryId, product }: Props) {
       setAvailableFor(product.availableFor)
       setStockControl(product.stockControl)
       setStockQty(product.stockQty != null ? String(product.stockQty) : '')
+      setMinStock(product.minStock != null ? String(product.minStock) : '')
       setAvgCost(product.avgCost != null ? String(product.avgCost) : '')
     } else {
       setName(''); setDescription(''); setPrice(''); setImageUrl('')
       setTags([]); setAvailableFor('BOTH'); setStockControl(false)
-      setStockQty(''); setAvgCost('')
+      setStockQty(''); setMinStock(''); setAvgCost('')
     }
     setError('')
   }, [product, open])
@@ -171,6 +173,7 @@ export function ProductModal({ open, onClose, categoryId, product }: Props) {
       availableFor,
       stockControl,
       stockQty: stockControl && stockQty ? parseInt(stockQty) : null,
+      minStock: stockControl && minStock ? parseInt(minStock) : null,
       avgCost: avgCost ? parseFloat(avgCost.replace(',', '.')) : null,
     }
 
@@ -181,8 +184,8 @@ export function ProductModal({ open, onClose, categoryId, product }: Props) {
         await createProduct.mutateAsync(payload)
       }
       onClose()
-    } catch {
-      setError('Erro ao salvar produto')
+    } catch (err: any) {
+      setError(err?.response?.data?.message ?? 'Erro ao salvar produto')
     }
   }
 
@@ -271,9 +274,11 @@ export function ProductModal({ open, onClose, categoryId, product }: Props) {
             <span className="text-sm font-medium text-foreground">Controlar estoque</span>
           </label>
           {stockControl && (
-            <div className="grid grid-cols-2 gap-3">
-              <Input label="Quantidade em estoque" type="number" min="0" placeholder="0"
+            <div className="grid grid-cols-3 gap-3">
+              <Input label="Qtd. em estoque" type="number" min="0" placeholder="0"
                 value={stockQty} onChange={(e) => setStockQty(e.target.value)} />
+              <Input label="Estoque mínimo" type="number" min="0" placeholder="0"
+                value={minStock} onChange={(e) => setMinStock(e.target.value)} />
               <Input label="Custo médio (R$)" placeholder="0,00"
                 value={avgCost} onChange={(e) => setAvgCost(e.target.value)} />
             </div>

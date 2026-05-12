@@ -6,6 +6,7 @@ import { Header } from '@/components/layout/header'
 import { api } from '@/lib/api'
 import { Gift, Plus, Trash2, Play, Users, X, Check, Copy, Trophy } from 'lucide-react'
 import { cn } from '@delivery/ui'
+import { useAuthStore } from '@/store/auth'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
@@ -17,10 +18,12 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
 
 export default function SorteiosPage() {
   const qc = useQueryClient()
+  const { store } = useAuthStore()
   const [showNew, setShowNew] = useState(false)
   const [selectedRaffle, setSelectedRaffle] = useState<any | null>(null)
   const [form, setForm] = useState({ title: '', description: '', prize: '', drawAt: '' })
-  const [copied, setCopied] = useState(false)
+  const [createError, setCreateError] = useState('')
+  const [copied, setCopied] = useState<string | null>(null)
 
   const { data: raffles = [], isLoading } = useQuery({
     queryKey: ['raffles'],
@@ -35,7 +38,15 @@ export default function SorteiosPage() {
 
   const create = useMutation({
     mutationFn: () => api.post('/raffles', { ...form, drawAt: form.drawAt ? new Date(form.drawAt).toISOString() : undefined }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['raffles'] }); setShowNew(false); setForm({ title: '', description: '', prize: '', drawAt: '' }) },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['raffles'] })
+      setShowNew(false)
+      setForm({ title: '', description: '', prize: '', drawAt: '' })
+      setCreateError('')
+    },
+    onError: (err: any) => {
+      setCreateError(err?.response?.data?.message ?? 'Erro ao criar sorteio.')
+    },
   })
 
   const remove = useMutation({
@@ -45,7 +56,11 @@ export default function SorteiosPage() {
 
   const draw = useMutation({
     mutationFn: (id: string) => api.post<{ data: any }>(`/raffles/${id}/draw`).then(r => r.data.data),
-    onSuccess: (data) => { qc.invalidateQueries({ queryKey: ['raffles'] }); alert(`🎉 Vencedor: ${data.winner.name} (${data.winner.phone})`) },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['raffles'] })
+      setSelectedRaffle(null)
+      alert(`🎉 Vencedor: ${data.winner.name} (${data.winner.phone})`)
+    },
   })
 
   const toggle = useMutation({
@@ -55,7 +70,8 @@ export default function SorteiosPage() {
 
   function copyLink(slug: string, id: string) {
     navigator.clipboard.writeText(`${process.env.NEXT_PUBLIC_STORE_URL ?? 'http://localhost:3001'}/${slug}/sorteio/${id}`)
-    setCopied(true); setTimeout(() => setCopied(false), 2000)
+    setCopied(id)
+    setTimeout(() => setCopied(null), 2000)
   }
 
   return (
@@ -96,12 +112,15 @@ export default function SorteiosPage() {
                   className="w-full h-10 rounded-xl border px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
               </div>
             </div>
+            {createError && (
+              <p className="rounded-xl bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-600">{createError}</p>
+            )}
             <div className="flex gap-2">
               <button onClick={() => create.mutate()} disabled={create.isPending || !form.title || !form.prize}
                 className="flex items-center gap-2 h-10 px-5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition">
                 <Check className="h-4 w-4" />{create.isPending ? 'Criando...' : 'Criar Sorteio'}
               </button>
-              <button onClick={() => setShowNew(false)} className="h-10 px-4 rounded-xl border text-sm hover:bg-muted transition">Cancelar</button>
+              <button onClick={() => { setShowNew(false); setCreateError('') }} className="h-10 px-4 rounded-xl border text-sm hover:bg-muted transition">Cancelar</button>
             </div>
           </div>
         )}
@@ -134,19 +153,41 @@ export default function SorteiosPage() {
                   <button onClick={() => setSelectedRaffle(raffle)} className="flex items-center gap-1 text-xs text-blue-600 hover:underline">
                     <Users className="h-3.5 w-3.5" /> Ver participantes
                   </button>
+                  <button
+                    onClick={() => copyLink(store?.slug ?? '', raffle.id)}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:underline"
+                    title="Copiar link de participação"
+                  >
+                    {copied === raffle.id ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copied === raffle.id ? 'Copiado!' : 'Copiar link'}
+                  </button>
                   {raffle.status === 'OPEN' && (
                     <>
-                      <button onClick={() => draw.mutate(raffle.id)} disabled={draw.isPending}
+                      <button
+                        onClick={() => {
+                          if (confirm(`Realizar o sorteio "${raffle.title}" agora? Esta ação não pode ser desfeita.`))
+                            draw.mutate(raffle.id)
+                        }}
+                        disabled={draw.isPending}
                         className="flex items-center gap-1 text-xs text-purple-600 hover:underline font-medium">
                         <Trophy className="h-3.5 w-3.5" /> Sortear
                       </button>
-                      <button onClick={() => toggle.mutate({ id: raffle.id, status: 'CLOSED' })}
+                      <button
+                        onClick={() => {
+                          if (confirm(`Encerrar "${raffle.title}"? Nenhum novo participante poderá se inscrever.`))
+                            toggle.mutate({ id: raffle.id, status: 'CLOSED' })
+                        }}
                         className="flex items-center gap-1 text-xs text-muted-foreground hover:underline">
                         Encerrar
                       </button>
                     </>
                   )}
-                  <button onClick={() => remove.mutate(raffle.id)} className="flex items-center gap-1 text-xs text-red-600 hover:underline ml-auto">
+                  <button
+                    onClick={() => {
+                      if (confirm(`Excluir o sorteio "${raffle.title}"? Todos os participantes serão removidos.`))
+                        remove.mutate(raffle.id)
+                    }}
+                    className="flex items-center gap-1 text-xs text-red-600 hover:underline ml-auto">
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>

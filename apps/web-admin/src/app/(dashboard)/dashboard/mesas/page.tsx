@@ -22,8 +22,8 @@ interface FormState {
 const EMPTY_FORM: FormState = { number: '', label: '', capacity: '4', isActive: true }
 
 function getQrUrl(store: { slug: string } | null, token: string): string {
-  if (typeof window === 'undefined' || !store) return ''
-  const base = window.location.origin.replace(':3001', ':3000').replace('3001', '3000')
+  if (!store || !token) return ''
+  const base = process.env.NEXT_PUBLIC_STORE_URL ?? 'http://localhost:3001'
   return `${base}/${store.slug}/mesa/${token}`
 }
 
@@ -107,9 +107,14 @@ export default function MesasPage() {
 
   async function handleCopyLink(table: Table) {
     const url = getQrUrl(store, table.qrToken)
-    await navigator.clipboard.writeText(url)
-    setCopiedId(table.id)
-    setTimeout(() => setCopiedId(null), 2000)
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopiedId(table.id)
+      setTimeout(() => setCopiedId(null), 2000)
+    } catch {
+      // Fallback: seleciona o texto manualmente se clipboard não tiver permissão
+      prompt('Copie o link da mesa:', url)
+    }
   }
 
   const isPending = createTable.isPending || updateTable.isPending
@@ -276,7 +281,11 @@ export default function MesasPage() {
                     </a>
                   )}
                   <div className="flex-1" />
-                  <button onClick={() => regenerateQr.mutate(t.id)}
+                  <button
+                    onClick={() => {
+                      if (confirm(`Gerar novo QR para Mesa ${t.number}? O QR Code anterior será invalidado e quaisquer links impressos pararão de funcionar.`))
+                        regenerateQr.mutate(t.id)
+                    }}
                     title="Gerar novo QR (invalida o anterior)"
                     disabled={regenerateQr.isPending}
                     className="flex h-7 w-7 items-center justify-center rounded-lg border text-muted-foreground hover:bg-muted transition">
@@ -286,7 +295,11 @@ export default function MesasPage() {
                     className="flex h-7 w-7 items-center justify-center rounded-lg border text-muted-foreground hover:bg-muted transition">
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
-                  <button onClick={() => deleteTable.mutate(t.id)}
+                  <button
+                    onClick={() => {
+                      if (confirm(`Excluir Mesa ${t.number}${t.label ? ` (${t.label})` : ''}? Esta ação não pode ser desfeita.`))
+                        deleteTable.mutate(t.id)
+                    }}
                     className="flex h-7 w-7 items-center justify-center rounded-lg border text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition">
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>

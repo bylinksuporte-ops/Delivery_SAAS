@@ -87,6 +87,17 @@ export function useCustomers(search?: string, page = 1) {
   })
 }
 
+export function useExportCustomers() {
+  return useMutation({
+    mutationFn: (search?: string) => {
+      const q = new URLSearchParams()
+      if (search) q.set('search', search)
+      q.set('all', 'true')
+      return api.get<{ data: CustomerSummary[] }>(`/customers?${q}`).then((r) => r.data.data)
+    },
+  })
+}
+
 export function useCustomer(id: string | null) {
   return useQuery({
     queryKey: ['customer', id],

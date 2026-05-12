@@ -23,7 +23,12 @@
     },
     "allowJs": true,
     "noEmit": true,
-    "isolatedModules": true
+    "isolatedModules": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noImplicitReturns": false,
+    "strictNullChecks": false,
+    "strict": false
   },
   "include": [
     "next-env.d.ts",

@@ -1,13 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import {
   Search, Users, Phone, Mail, ShoppingBag, TrendingUp, ChevronLeft, ChevronRight,
   X, MapPin, Clock, Plus, Pencil, Trash2, Check, Star, Download, UserPlus,
 } from 'lucide-react'
 import {
   useCustomers, useCustomer, useCreateCustomer, useUpdateCustomer, useDeleteCustomer,
-  useCreateAddress, useUpdateAddress, useDeleteAddress,
+  useCreateAddress, useUpdateAddress, useDeleteAddress, useExportCustomers,
   type CustomerOrder, type CustomerAddress, type AddressInput,
 } from '@/hooks/use-customers'
 import { currency } from '@/lib/utils'
@@ -519,8 +519,10 @@ export default function ClientesPage() {
   const [page, setPage] = useState(1)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [showNew, setShowNew] = useState(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const { data, isLoading } = useCustomers(debouncedSearch || undefined, page)
+  const exportCustomers = useExportCustomers()
   const customers = data?.data ?? []
   const meta = data?.meta
   const totalPages = meta ? Math.ceil(meta.total / meta.take) : 1
@@ -528,8 +530,13 @@ export default function ClientesPage() {
   function handleSearch(v: string) {
     setSearch(v)
     setPage(1)
-    clearTimeout((window as any)._cst)
-    ;(window as any)._cst = setTimeout(() => setDebouncedSearch(v), 350)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => setDebouncedSearch(v), 350)
+  }
+
+  async function handleExport() {
+    const all = await exportCustomers.mutateAsync(debouncedSearch || undefined)
+    exportCSV(all)
   }
 
   return (
@@ -547,9 +554,14 @@ export default function ClientesPage() {
             )}
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => exportCSV(customers)} disabled={customers.length === 0}
-              className="flex items-center gap-1.5 h-9 px-3 rounded-xl border text-sm font-medium hover:bg-muted transition disabled:opacity-40">
-              <Download className="h-4 w-4" /> Exportar
+            <button
+              onClick={handleExport}
+              disabled={exportCustomers.isPending || (meta?.total === 0)}
+              className="flex items-center gap-1.5 h-9 px-3 rounded-xl border text-sm font-medium hover:bg-muted transition disabled:opacity-40"
+              title={meta ? `Exportar ${meta.total} clientes` : 'Exportar'}
+            >
+              <Download className="h-4 w-4" />
+              {exportCustomers.isPending ? 'Exportando...' : 'Exportar'}
             </button>
             <button onClick={() => setShowNew(true)}
               className="flex items-center gap-1.5 h-9 px-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition">

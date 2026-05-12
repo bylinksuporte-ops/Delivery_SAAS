@@ -7,7 +7,9 @@ import {
   useSalesChart,
   useTopProducts,
   useReportOrders,
+  useExportReportOrders,
   type Period,
+  type ReportOrder,
 } from '@/hooks/use-reports'
 import { currency } from '@/lib/utils'
 
@@ -34,8 +36,8 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 function formatDateLabel(date: string, period: Period): string {
+  if (period === 'today') return 'Hoje'
   const d = new Date(date + 'T12:00:00')
-  if (period === 'today') return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
 }
 
@@ -87,25 +89,32 @@ function BarChart({ data, period }: { data: { date: string; count: number; reven
   )
 }
 
-// Exportação CSV client-side
-function exportCSV(orders: ReturnType<typeof useReportOrders>['data']) {
-  if (!orders?.data.length) return
+const TYPE_LABELS: Record<string, string> = {
+  DELIVERY: 'Entrega', PICKUP: 'Retirada', TABLE: 'Mesa', COUNTER: 'Balcão',
+}
 
-  const header = ['#', 'Data', 'Cliente', 'Tipo', 'Pagamento', 'Subtotal', 'Entrega', 'Desconto', 'Total', 'Status']
-  const rows = orders.data.map((o) => [
+// Exportação CSV client-side
+function exportCSV(orders: ReportOrder[]) {
+  if (!orders.length) return
+
+  const header = ['#', 'Data', 'Cliente', 'Telefone', 'Tipo', 'Pagamento', 'Subtotal', 'Entrega', 'Desconto', 'Total', 'Status']
+  const rows = orders.map((o) => [
     o.orderNumber,
     new Date(o.createdAt).toLocaleString('pt-BR'),
     o.customer?.name ?? '',
-    o.type === 'DELIVERY' ? 'Entrega' : 'Retirada',
+    o.customer?.phone ?? '',
+    TYPE_LABELS[o.type] ?? o.type,
     o.paymentMethod ?? '',
-    o.subtotal.toFixed(2),
-    o.deliveryFee.toFixed(2),
-    o.discount.toFixed(2),
-    o.total.toFixed(2),
+    o.subtotal.toFixed(2).replace('.', ','),
+    o.deliveryFee.toFixed(2).replace('.', ','),
+    o.discount.toFixed(2).replace('.', ','),
+    o.total.toFixed(2).replace('.', ','),
     STATUS_LABELS[o.status] ?? o.status,
   ])
 
-  const csv = [header, ...rows].map((r) => r.join(';')).join('\n')
+  const csv = [header, ...rows]
+    .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(';'))
+    .join('\n')
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -123,6 +132,7 @@ export default function RelatoriosPage() {
   const { data: salesData = [], isLoading: salesLoading } = useSalesChart(period)
   const { data: topProducts = [], isLoading: topLoading } = useTopProducts(period)
   const ordersQuery = useReportOrders(period, ordersPage)
+  const exportOrders = useExportReportOrders()
 
   const maxQty = Math.max(...topProducts.map((p) => p.quantity), 1)
 
@@ -239,12 +249,15 @@ export default function RelatoriosPage() {
         <div className="flex items-center justify-between">
           <h2 className="font-semibold text-sm">Histórico de pedidos</h2>
           <button
-            onClick={() => exportCSV(ordersQuery.data)}
-            disabled={!ordersQuery.data?.data.length}
+            onClick={async () => {
+              const all = await exportOrders.mutateAsync(period)
+              exportCSV(all)
+            }}
+            disabled={exportOrders.isPending || !ordersQuery.data?.meta.total}
             className="flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted hover:text-foreground transition disabled:opacity-40"
           >
             <Download className="h-3.5 w-3.5" />
-            Exportar CSV
+            {exportOrders.isPending ? 'Exportando...' : 'Exportar CSV'}
           </button>
         </div>
 

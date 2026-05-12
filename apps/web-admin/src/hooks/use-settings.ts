@@ -18,6 +18,9 @@ export interface StoreSettings {
   evolutionApiUrl: string | null
   evolutionApiKey: string | null
   evolutionInstance: string | null
+  mpAccessToken: string | null
+  mpPublicKey: string | null
+  mpSandbox: boolean
   primaryColor: string
   layoutStyle: 'grid' | 'list'
   bannerUrl: string | null

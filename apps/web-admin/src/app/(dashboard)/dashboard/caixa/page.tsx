@@ -211,7 +211,7 @@ function AddonModal({
 
 // ─── Tela de Caixa Fechado ──────────────────────────────────────────────────
 
-function CaixaFechado({ onOpen }: { onOpen: () => void }) {
+function CaixaFechado() {
   const [balance, setBalance] = useState('')
   const [loading, setLoading] = useState(false)
   const open = useOpenCashRegister()
@@ -485,7 +485,7 @@ export default function CaixaPage() {
   const paymentMethods = settings?.paymentMethods.filter((m) => m.isActive) ?? []
 
   function addToCart(product: Product, withAddons = false) {
-    if (product.addonGroups?.length || withAddons) {
+    if ((product._count?.addonGroups ?? 0) > 0 || withAddons) {
       setAddonProduct(product)
       return
     }
@@ -517,6 +517,7 @@ export default function CaixaPage() {
     if (!paymentMethod) { setErrorMsg('Selecione um método de pagamento.'); return }
     if (orderType === 'TABLE' && !tableId) { setErrorMsg('Selecione uma mesa.'); return }
     setErrorMsg('')
+    setSuccessOrder(null)
     setLoading(true)
     try {
       const body: any = {
@@ -539,12 +540,14 @@ export default function CaixaPage() {
 
       const { data } = await api.post('/orders', body)
       setSuccessOrder({ number: data.data.orderNumber })
+      setTimeout(() => setSuccessOrder(null), 4000)
       setCart([])
       setCustomerName('')
       setCustomerPhone('')
       setNotes('')
       setTableId('')
       setPaymentMethod('')
+      setExtraPayments([])
     } catch (err: any) {
       setErrorMsg(err?.response?.data?.message ?? 'Erro ao criar pedido.')
     } finally {
@@ -561,7 +564,7 @@ export default function CaixaPage() {
     )
   }
 
-  if (!currentRegister) return <CaixaFechado onOpen={() => {}} />
+  if (!currentRegister) return <CaixaFechado />
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden">

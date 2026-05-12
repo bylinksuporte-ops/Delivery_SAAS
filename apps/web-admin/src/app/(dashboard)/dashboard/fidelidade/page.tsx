@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Header } from '@/components/layout/header'
 import { api } from '@/lib/api'
 import { currency } from '@/lib/utils'
-import { Gift, Star, Plus, Minus, Check } from 'lucide-react'
+import { Star, Plus, Check, X } from 'lucide-react'
 import { cn } from '@delivery/ui'
 
 interface LoyaltyConfig {
@@ -41,8 +41,10 @@ export default function FidelidadePage() {
   const [minRedeem, setMinRedeem] = useState('100')
   const [expDays, setExpDays] = useState('365')
   const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const [addingId, setAddingId] = useState<string | null>(null)
   const [addPts, setAddPts] = useState('')
+  const [addError, setAddError] = useState('')
 
   useEffect(() => {
     if (config) {
@@ -55,8 +57,35 @@ export default function FidelidadePage() {
 
   async function saveConfig(e: React.FormEvent) {
     e.preventDefault()
-    await updateConfig.mutateAsync({ pointsPerReal: Number(ppr), pointsToReal: Number(ptr), minRedeemPoints: Number(minRedeem), expirationDays: Number(expDays) })
-    setSaved(true); setTimeout(() => setSaved(false), 2500)
+    setSaveError('')
+    const parsedPpr = Number(ppr)
+    const parsedPtr = Number(ptr)
+    const parsedMin = Number(minRedeem)
+    const parsedExp = Number(expDays)
+    if (!parsedPpr || parsedPpr < 0.1) { setSaveError('Pontos por R$1 deve ser no mínimo 0,1'); return }
+    if (!parsedPtr || parsedPtr < 1) { setSaveError('Pontos para R$1 de desconto deve ser no mínimo 1'); return }
+    if (!parsedMin || parsedMin < 1) { setSaveError('Mínimo para resgatar deve ser no mínimo 1'); return }
+    if (!parsedExp || parsedExp < 1) { setSaveError('Validade deve ser no mínimo 1 dia'); return }
+    try {
+      await updateConfig.mutateAsync({ pointsPerReal: parsedPpr, pointsToReal: parsedPtr, minRedeemPoints: parsedMin, expirationDays: parsedExp })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+    } catch (err: any) {
+      setSaveError(err?.response?.data?.message ?? 'Erro ao salvar configuração.')
+    }
+  }
+
+  async function handleAddPoints(customerId: string) {
+    const pts = parseInt(addPts)
+    if (!pts || pts < 1) { setAddError('Informe um valor de pontos válido (mínimo 1)'); return }
+    setAddError('')
+    try {
+      await addPoints.mutateAsync({ customerId, points: pts })
+      setAddingId(null)
+      setAddPts('')
+    } catch (err: any) {
+      setAddError(err?.response?.data?.message ?? 'Erro ao adicionar pontos.')
+    }
   }
 
   return (
@@ -72,8 +101,10 @@ export default function FidelidadePage() {
               <div className="h-10 w-10 rounded-xl bg-yellow-50 flex items-center justify-center"><Star className="h-5 w-5 text-yellow-600" /></div>
               <div><h2 className="font-semibold">Programa de Pontos</h2><p className="text-xs text-muted-foreground">Clientes ganham pontos a cada pedido</p></div>
             </div>
-            <button onClick={() => updateConfig.mutate({ isEnabled: !config?.isEnabled })}
-              className={cn('relative h-7 w-12 rounded-full transition-colors', config?.isEnabled ? 'bg-green-500' : 'bg-muted-foreground/30')}>
+            <button
+              onClick={() => updateConfig.mutate({ isEnabled: !config?.isEnabled })}
+              disabled={updateConfig.isPending}
+              className={cn('relative h-7 w-12 rounded-full transition-colors disabled:opacity-60', config?.isEnabled ? 'bg-green-500' : 'bg-muted-foreground/30')}>
               <span className="absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform"
                 style={{ transform: config?.isEnabled ? 'translateX(22px)' : 'translateX(2px)' }} />
             </button>
@@ -108,7 +139,8 @@ export default function FidelidadePage() {
                   💡 Pedido de R$50 → <strong>{(50 * Number(ppr)).toFixed(0)} pontos</strong> → vale <strong>{currency((50 * Number(ppr)) / Number(ptr))}</strong> de desconto
                 </div>
               )}
-              <div className="col-span-2">
+              <div className="col-span-2 space-y-2">
+                {saveError && <p className="text-xs text-destructive">{saveError}</p>}
                 <button type="submit" disabled={updateConfig.isPending}
                   className="flex items-center gap-2 h-10 px-5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition">
                   {saved ? <><Check className="h-4 w-4" />Salvo!</> : 'Salvar configuração'}
@@ -147,15 +179,31 @@ export default function FidelidadePage() {
                     <td className="px-4 py-3 text-muted-foreground">{l.totalRedeemed} pts</td>
                     <td className="px-4 py-3">
                       {addingId === l.customer?.id ? (
-                        <div className="flex gap-1.5">
-                          <input type="number" value={addPts} onChange={e => setAddPts(e.target.value)} placeholder="pts" min="1"
-                            className="w-16 h-8 rounded-lg border px-2 text-sm focus:outline-none" />
-                          <button onClick={async () => { await addPoints.mutateAsync({ customerId: l.customer.id, points: Number(addPts) }); setAddingId(null); setAddPts('') }}
-                            className="h-8 px-2 rounded-lg bg-primary text-primary-foreground text-xs"><Check className="h-3.5 w-3.5" /></button>
-                          <button onClick={() => { setAddingId(null); setAddPts('') }} className="h-8 px-2 rounded-lg border text-xs">✕</button>
+                        <div className="space-y-1">
+                          <div className="flex gap-1.5">
+                            <input
+                              type="number" min="1" placeholder="pts" value={addPts}
+                              onChange={e => { setAddPts(e.target.value); setAddError('') }}
+                              onKeyDown={e => { if (e.key === 'Enter') handleAddPoints(l.customer.id); if (e.key === 'Escape') { setAddingId(null); setAddPts(''); setAddError('') } }}
+                              autoFocus
+                              className="w-16 h-8 rounded-lg border px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                            />
+                            <button
+                              onClick={() => handleAddPoints(l.customer.id)}
+                              disabled={addPoints.isPending}
+                              className="h-8 px-2 rounded-lg bg-primary text-primary-foreground text-xs disabled:opacity-50">
+                              <Check className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => { setAddingId(null); setAddPts(''); setAddError('') }}
+                              className="h-8 px-2 rounded-lg border text-muted-foreground hover:bg-muted">
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                          {addError && <p className="text-xs text-destructive">{addError}</p>}
                         </div>
                       ) : (
-                        <button onClick={() => setAddingId(l.customer?.id)} className="flex items-center gap-1 text-xs text-primary hover:underline">
+                        <button onClick={() => { setAddingId(l.customer?.id); setAddError('') }} className="flex items-center gap-1 text-xs text-primary hover:underline">
                           <Plus className="h-3.5 w-3.5" /> Adicionar
                         </button>
                       )}

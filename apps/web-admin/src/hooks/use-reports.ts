@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 
 export type Period = 'today' | '7d' | '30d'
@@ -80,5 +80,14 @@ export function useReportOrders(period: Period, page = 1) {
         )
         .then((r) => r.data),
     staleTime: 60_000,
+  })
+}
+
+export function useExportReportOrders() {
+  return useMutation({
+    mutationFn: (period: Period) =>
+      api
+        .get<{ data: ReportOrder[] }>(`/reports/orders?period=${period}&all=true`)
+        .then((r) => r.data.data),
   })
 }

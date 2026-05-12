@@ -6,7 +6,7 @@ import { useCashback, useUpdateCashback, usePromoStats } from '@/hooks/use-promo
 import { useCoupons, useCreateCoupon, useUpdateCoupon, useDeleteCoupon, COUPON_TYPE_LABELS } from '@/hooks/use-coupons'
 import {
   Tag, Gift, TrendingDown, Percent, Plus, Pencil, Trash2, Copy,
-  Check, ToggleLeft, ToggleRight, ChevronDown, ChevronUp, X, RefreshCw,
+  Check, ToggleLeft, ToggleRight, X, RefreshCw,
 } from 'lucide-react'
 import { cn } from '@delivery/ui'
 import { currency } from '@/lib/utils'
@@ -36,17 +36,36 @@ function couponDescription(c: { type: string; value: number }) {
 
 // ─── Formulário de Cupom ─────────────────────────────────────────────────────
 
-function CouponForm({ initial, onSave, onCancel, loading }: {
-  initial?: any; onSave: (d: any) => void; onCancel: () => void; loading: boolean
+function CouponForm({ initial, onSave, onCancel, loading, error }: {
+  initial?: any; onSave: (d: any) => void; onCancel: () => void; loading: boolean; error?: string
 }) {
   const [code, setCode] = useState(initial?.code ?? '')
   const [type, setType] = useState(initial?.type ?? 'PERCENT_DISCOUNT')
   const [value, setValue] = useState(initial?.value ? String(initial.value) : '')
   const [minOrder, setMinOrder] = useState(initial?.minOrder ? String(initial.minOrder) : '0')
   const [maxUses, setMaxUses] = useState(initial?.maxUses ? String(initial.maxUses) : '')
-  const [expiresAt, setExpiresAt] = useState(initial?.expiresAt ? initial.expiresAt.slice(0, 10) : '')
+  const [expiresAt, setExpiresAt] = useState(
+    initial?.expiresAt ? new Date(initial.expiresAt).toLocaleDateString('en-CA') : '',
+  )
 
   const needsValue = type !== 'FREE_DELIVERY'
+  const isPercent = type === 'PERCENT_DISCOUNT'
+
+  function buildPayload() {
+    const parsedValue = needsValue ? parseFloat(value) : 0
+    // Fim do dia selecionado no fuso local para evitar shift de timezone
+    const expiresIso = expiresAt ? `${expiresAt}T23:59:59` : null
+    return {
+      code, type,
+      value: parsedValue,
+      minOrder: parseFloat(minOrder) || 0,
+      maxUses: maxUses ? parseInt(maxUses) : null,
+      expiresAt: expiresIso,
+      isActive: initial?.isActive ?? true,
+    }
+  }
+
+  const isValid = code.trim().length >= 3 && (!needsValue || (value !== '' && parseFloat(value) >= 0 && (!isPercent || parseFloat(value) <= 100)))
 
   return (
     <div className="bg-muted/30 border rounded-xl p-4 space-y-3">
@@ -58,17 +77,20 @@ function CouponForm({ initial, onSave, onCancel, loading }: {
         </div>
         <div className="space-y-1">
           <label className="text-xs font-medium">Tipo *</label>
-          <select value={type} onChange={(e) => setType(e.target.value)}
+          <select value={type} onChange={(e) => { setType(e.target.value); setValue('') }}
             className="w-full h-9 rounded-xl border px-2.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/40">
             {Object.entries(COUPON_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </div>
         {needsValue && (
           <div className="space-y-1">
-            <label className="text-xs font-medium">Valor *</label>
-            <input type="number" min="0" value={value} onChange={(e) => setValue(e.target.value)}
-              placeholder={type === 'PERCENT_DISCOUNT' ? '10' : '5.00'}
-              className="w-full h-9 rounded-xl border px-3 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/40" />
+            <label className="text-xs font-medium">Valor * {isPercent && <span className="text-muted-foreground">(máx 100)</span>}</label>
+            <input
+              type="number" min="0" max={isPercent ? 100 : undefined} step={isPercent ? '1' : '0.01'}
+              value={value} onChange={(e) => setValue(e.target.value)}
+              placeholder={isPercent ? '10' : '5.00'}
+              className="w-full h-9 rounded-xl border px-3 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/40"
+            />
           </div>
         )}
         <div className="space-y-1">
@@ -87,14 +109,9 @@ function CouponForm({ initial, onSave, onCancel, loading }: {
             className="w-full h-9 rounded-xl border px-3 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/40" />
         </div>
       </div>
+      {error && <p className="text-xs text-destructive">{error}</p>}
       <div className="flex gap-2">
-        <button onClick={() => onSave({
-          code, type, value: needsValue ? parseFloat(value) : 0,
-          minOrder: parseFloat(minOrder) || 0,
-          maxUses: maxUses ? parseInt(maxUses) : null,
-          expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
-          isActive: initial?.isActive ?? true,
-        })} disabled={loading || !code || (needsValue && !value)}
+        <button onClick={() => onSave(buildPayload())} disabled={loading || !isValid}
           className="h-8 px-4 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 disabled:opacity-50 transition flex items-center gap-1.5">
           <Check className="h-3.5 w-3.5" />{loading ? 'Salvando...' : 'Salvar'}
         </button>
@@ -131,20 +148,28 @@ export default function PromocoesPage() {
 
   // Cupons
   const [showNewCoupon, setShowNewCoupon] = useState(false)
+  const [newCouponError, setNewCouponError] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [editCouponError, setEditCouponError] = useState('')
+  const [cbError, setCbError] = useState('')
   const [copied, setCopied] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all')
 
   async function handleSaveCashback(e: React.FormEvent) {
     e.preventDefault()
-    await updateCashback.mutateAsync({
-      percentBack: parseFloat(percentBack),
-      minOrderValue: parseFloat(minOrderCb) || 0,
-      expirationDays: parseInt(expirationDays) || 30,
-    })
-    setCbSaved(true)
-    setTimeout(() => setCbSaved(false), 3000)
+    setCbError('')
+    try {
+      await updateCashback.mutateAsync({
+        percentBack: parseFloat(percentBack),
+        minOrderValue: parseFloat(minOrderCb) || 0,
+        expirationDays: parseInt(expirationDays) || 30,
+      })
+      setCbSaved(true)
+      setTimeout(() => setCbSaved(false), 3000)
+    } catch (err: any) {
+      setCbError(err?.response?.data?.message ?? 'Erro ao salvar cashback.')
+    }
   }
 
   function copyCode(code: string) {
@@ -154,8 +179,10 @@ export default function PromocoesPage() {
   }
 
   const filteredCoupons = coupons.filter((c) => {
-    if (filter === 'active') return c.isActive && (!c.expiresAt || new Date(c.expiresAt) >= new Date()) && (c.maxUses == null || c.usedCount < c.maxUses)
-    if (filter === 'inactive') return !c.isActive || (c.expiresAt != null && new Date(c.expiresAt) < new Date())
+    const expired = c.expiresAt != null && new Date(c.expiresAt) < new Date()
+    const exhausted = c.maxUses != null && c.usedCount >= c.maxUses
+    if (filter === 'active') return c.isActive && !expired && !exhausted
+    if (filter === 'inactive') return !c.isActive || expired || exhausted
     return true
   })
 
@@ -229,14 +256,17 @@ export default function PromocoesPage() {
                 <input type="number" min="1" value={expirationDays} onChange={(e) => setExpirationDays(e.target.value)}
                   className="w-full h-9 rounded-xl border px-3 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/40" />
               </div>
-              <div className="col-span-3 flex items-center gap-3">
-                <button type="submit" disabled={updateCashback.isPending}
-                  className="h-9 px-5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition flex items-center gap-2">
-                  {cbSaved ? <><Check className="h-4 w-4" />Salvo!</> : 'Salvar Cashback'}
-                </button>
-                <p className="text-xs text-muted-foreground">
-                  Cliente recebe <strong>{percentBack}%</strong> de volta válido por <strong>{expirationDays} dias</strong>
-                </p>
+              <div className="col-span-3 space-y-2">
+                {cbError && <p className="text-xs text-destructive">{cbError}</p>}
+                <div className="flex items-center gap-3">
+                  <button type="submit" disabled={updateCashback.isPending}
+                    className="h-9 px-5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition flex items-center gap-2">
+                    {cbSaved ? <><Check className="h-4 w-4" />Salvo!</> : 'Salvar Cashback'}
+                  </button>
+                  <p className="text-xs text-muted-foreground">
+                    Cliente recebe <strong>{percentBack}%</strong> de volta válido por <strong>{expirationDays} dias</strong>
+                  </p>
+                </div>
               </div>
             </form>
           )}
@@ -285,9 +315,18 @@ export default function PromocoesPage() {
 
           {showNewCoupon && (
             <CouponForm
-              onSave={async (data) => { await createCoupon.mutateAsync(data); setShowNewCoupon(false) }}
-              onCancel={() => setShowNewCoupon(false)}
+              onSave={async (data) => {
+                setNewCouponError('')
+                try {
+                  await createCoupon.mutateAsync(data)
+                  setShowNewCoupon(false)
+                } catch (err: any) {
+                  setNewCouponError(err?.response?.data?.message ?? 'Erro ao criar cupom.')
+                }
+              }}
+              onCancel={() => { setShowNewCoupon(false); setNewCouponError('') }}
               loading={createCoupon.isPending}
+              error={newCouponError}
             />
           )}
 
@@ -304,9 +343,18 @@ export default function PromocoesPage() {
               if (editingId === c.id) {
                 return (
                   <CouponForm key={c.id} initial={c}
-                    onSave={async (data) => { await updateCoupon.mutateAsync({ id: c.id, ...data }); setEditingId(null) }}
-                    onCancel={() => setEditingId(null)}
+                    onSave={async (data) => {
+                      setEditCouponError('')
+                      try {
+                        await updateCoupon.mutateAsync({ id: c.id, ...data })
+                        setEditingId(null)
+                      } catch (err: any) {
+                        setEditCouponError(err?.response?.data?.message ?? 'Erro ao atualizar cupom.')
+                      }
+                    }}
+                    onCancel={() => { setEditingId(null); setEditCouponError('') }}
                     loading={updateCoupon.isPending}
+                    error={editCouponError}
                   />
                 )
               }

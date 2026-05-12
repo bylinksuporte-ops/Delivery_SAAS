@@ -88,7 +88,8 @@ export default function CuponsPage() {
       value: String(c.value),
       minOrder: String(c.minOrder),
       maxUses: c.maxUses != null ? String(c.maxUses) : '',
-      expiresAt: c.expiresAt ? c.expiresAt.split('T')[0]! : '',
+      // Converte para data local (evita shift de timezone UTC→local)
+      expiresAt: c.expiresAt ? new Date(c.expiresAt).toLocaleDateString('en-CA') : '',
       isActive: c.isActive,
     })
     setFormError('')
@@ -106,10 +107,10 @@ export default function CuponsPage() {
     e.preventDefault()
     setFormError('')
 
+    if (form.code.trim().length < 3) { setFormError('Código deve ter pelo menos 3 caracteres'); return }
     const value = parseFloat(form.value)
-    if (isNaN(value) || value < 0) { setFormError('Valor do desconto inválido'); return }
+    if (form.type !== 'FREE_DELIVERY' && (isNaN(value) || value < 0)) { setFormError('Valor do desconto inválido'); return }
     if (form.type === 'PERCENT_DISCOUNT' && value > 100) { setFormError('Percentual não pode ser maior que 100'); return }
-    if (!form.code.trim()) { setFormError('Código é obrigatório'); return }
 
     const payload = {
       code: form.code.toUpperCase().trim(),
@@ -192,7 +193,7 @@ export default function CuponsPage() {
               <label className="text-xs font-medium">Tipo de desconto *</label>
               <select
                 value={form.type}
-                onChange={(e) => set('type', e.target.value)}
+                onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as CouponType, value: '' }))}
                 className="h-10 w-full rounded-xl border bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               >
                 {Object.entries(COUPON_TYPE_LABELS).map(([v, l]) => (
@@ -327,7 +328,7 @@ export default function CuponsPage() {
 
                   <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
                     <span className="font-semibold text-primary">{discountLabel(c)}</span>
-                    <span>{COUPON_TYPE_LABELS[c.type]}</span>
+                    <span>{COUPON_TYPE_LABELS[c.type] ?? c.type}</span>
                     {Number(c.minOrder) > 0 && <span>mín: {currency(Number(c.minOrder))}</span>}
                     {c.maxUses && (
                       <span>{c.usedCount}/{c.maxUses} usos</span>
@@ -356,7 +357,11 @@ export default function CuponsPage() {
                     className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition">
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
-                  <button onClick={() => deleteCoupon.mutate(c.id)}
+                  <button
+                    onClick={() => {
+                      if (confirm(`Excluir o cupom "${c.code}"? Esta ação não pode ser desfeita.`))
+                        deleteCoupon.mutate(c.id)
+                    }}
                     className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition">
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>

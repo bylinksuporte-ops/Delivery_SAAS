@@ -79,7 +79,7 @@ export default function EntregadoresPage() {
     e.preventDefault()
     setFormError('')
 
-    if (!form.name.trim()) { setFormError('Nome é obrigatório'); return }
+    if (form.name.trim().length < 2) { setFormError('Nome deve ter pelo menos 2 caracteres'); return }
     const commission = parseFloat(form.commission)
     if (isNaN(commission) || commission < 0 || commission > 100) {
       setFormError('Comissão deve ser entre 0 e 100')
@@ -139,7 +139,7 @@ export default function EntregadoresPage() {
             <p className="text-2xl font-bold mt-1">{totalActive}</p>
           </div>
           <div className="rounded-2xl border bg-card p-4">
-            <p className="text-xs text-muted-foreground">Total de entregas</p>
+            <p className="text-xs text-muted-foreground">Entregas concluídas</p>
             <p className="text-2xl font-bold mt-1">{totalDeliveries}</p>
           </div>
         </div>
@@ -278,7 +278,7 @@ export default function EntregadoresPage() {
                 <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
                   {d.phone && <span>{d.phone}</span>}
                   {d.commission > 0 && <span>{d.commission}% comissão</span>}
-                  <span className="font-medium">{d._count.orders} entrega{d._count.orders !== 1 ? 's' : ''}</span>
+                  <span className="font-medium">{d._count.orders} entrega{d._count.orders !== 1 ? 's' : ''} concluída{d._count.orders !== 1 ? 's' : ''}</span>
                 </div>
               </div>
 
@@ -297,7 +297,11 @@ export default function EntregadoresPage() {
                   className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition">
                   <Pencil className="h-3.5 w-3.5" />
                 </button>
-                <button onClick={() => deleteDeliveryman.mutate(d.id)}
+                <button
+                  onClick={() => {
+                    if (confirm(`Excluir "${d.name}"? Os pedidos atribuídos a ele serão desvinculados.`))
+                      deleteDeliveryman.mutate(d.id)
+                  }}
                   className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition">
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -316,7 +320,7 @@ export default function EntregadoresPage() {
               <tr className="border-b text-xs text-muted-foreground">
                 <th className="py-2 text-left font-medium">Entregador</th>
                 <th className="py-2 text-left font-medium">Veículo</th>
-                <th className="py-2 text-center font-medium">Entregas</th>
+                <th className="py-2 text-center font-medium">Entregas concluídas</th>
                 <th className="py-2 text-center font-medium">Status</th>
               </tr>
             </thead>

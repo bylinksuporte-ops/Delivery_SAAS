@@ -36,6 +36,8 @@ export default function ConfiguracoesPage() {
   const [storeInstagram, setStoreInstagram] = useState('')
   const [storeFacebook, setStoreFacebook] = useState('')
   const [storeInfoSaved, setStoreInfoSaved] = useState(false)
+  const [storeInfoError, setStoreInfoError] = useState('')
+  const [asaasError, setAsaasError] = useState('')
 
   const updateSettings = useUpdateSettings()
   const togglePm = useTogglePaymentMethod()
@@ -48,22 +50,25 @@ export default function ConfiguracoesPage() {
   const [asaasSuccess, setAsaasSuccess] = useState(false)
 
   // Formulário Mercado Pago
-  const [mpToken, setMpToken] = useState('')
+  const [mpToken, setMpToken] = useState('')   // nunca inicializar com o valor mascarado
   const [mpKey, setMpKey] = useState('')
   const [mpSandbox, setMpSandbox] = useState(true)
   const [mpSuccess, setMpSuccess] = useState(false)
+  const [mpError, setMpError] = useState('')
 
   // Formulário Evolution API
   const [evolutionUrl, setEvolutionUrl] = useState('')
   const [evolutionKey, setEvolutionKey] = useState('')
   const [evolutionInstance, setEvolutionInstance] = useState('')
   const [evolutionSuccess, setEvolutionSuccess] = useState(false)
+  const [evolutionError, setEvolutionError] = useState('')
 
   // Aparência
   const [primaryColor, setPrimaryColor] = useState('#f97316')
   const [layoutStyle, setLayoutStyle] = useState<'grid' | 'list'>('grid')
   const [bannerUrl, setBannerUrl] = useState('')
   const [appearanceSuccess, setAppearanceSuccess] = useState(false)
+  const [appearanceError, setAppearanceError] = useState('')
 
   const { store } = useAuthStore()
 
@@ -73,7 +78,7 @@ export default function ConfiguracoesPage() {
       setEvolutionKey(settings.evolutionApiKey ?? '')
       setEvolutionInstance(settings.evolutionInstance ?? '')
       setAsaasSandbox(settings.asaasSandbox ?? true)
-      setMpToken(settings.mpAccessToken ?? '')
+      // mpToken nunca é inicializado com o valor mascarado '••••••••' — começa vazio
       setMpKey(settings.mpPublicKey ?? '')
       setMpSandbox(settings.mpSandbox ?? true)
       setPrimaryColor(settings.primaryColor ?? '#f97316')
@@ -116,44 +121,63 @@ export default function ConfiguracoesPage() {
 
   async function handleSaveMp(e: React.FormEvent) {
     e.preventDefault()
-    await updateSettings.mutateAsync({
-      mpAccessToken: mpToken.trim() || undefined,
-      mpPublicKey: mpKey.trim() || undefined,
-      mpSandbox,
-    })
-    setMpSuccess(true)
-    setTimeout(() => setMpSuccess(false), 3000)
+    setMpError('')
+    try {
+      await updateSettings.mutateAsync({
+        mpAccessToken: mpToken.trim() || undefined,
+        mpPublicKey: mpKey.trim() || undefined,
+        mpSandbox,
+      })
+      setMpSuccess(true)
+      setTimeout(() => setMpSuccess(false), 3000)
+    } catch (err: any) {
+      setMpError(err?.response?.data?.message ?? 'Erro ao salvar Mercado Pago.')
+    }
   }
 
   async function handleSaveAsaas(e: React.FormEvent) {
     e.preventDefault()
-    await updateSettings.mutateAsync({
-      asaasApiKey: asaasKey.trim() || null,
-      asaasSandbox,
-    })
-    setAsaasKey('')
-    setAsaasSuccess(true)
-    setTimeout(() => setAsaasSuccess(false), 3000)
+    setAsaasError('')
+    try {
+      await updateSettings.mutateAsync({
+        asaasApiKey: asaasKey.trim() || null,
+        asaasSandbox,
+      })
+      setAsaasKey('')
+      setAsaasSuccess(true)
+      setTimeout(() => setAsaasSuccess(false), 3000)
+    } catch (err: any) {
+      setAsaasError(err?.response?.data?.message ?? 'Erro ao salvar configuração Asaas.')
+    }
   }
 
   async function handleSaveEvolution(e: React.FormEvent) {
     e.preventDefault()
-    await updateSettings.mutateAsync({
-      evolutionApiUrl: evolutionUrl.trim() || undefined,
-      evolutionApiKey: evolutionKey.trim() || undefined,
-      evolutionInstance: evolutionInstance.trim() || undefined,
-    })
-    setEvolutionSuccess(true)
-    setTimeout(() => setEvolutionSuccess(false), 3000)
+    setEvolutionError('')
+    try {
+      await updateSettings.mutateAsync({
+        evolutionApiUrl: evolutionUrl.trim() || undefined,
+        evolutionApiKey: evolutionKey.trim() || undefined,
+        evolutionInstance: evolutionInstance.trim() || undefined,
+      })
+      setEvolutionSuccess(true)
+      setTimeout(() => setEvolutionSuccess(false), 3000)
+    } catch (err: any) {
+      setEvolutionError(err?.response?.data?.message ?? 'Erro ao salvar WhatsApp.')
+    }
   }
 
   async function handleAddPm(e: React.FormEvent) {
     e.preventDefault()
     if (!newPmType || !newPmLabel) return
-    await createPm.mutateAsync({ type: newPmType, label: newPmLabel })
-    setNewPmType('')
-    setNewPmLabel('')
-    setShowAddPm(false)
+    try {
+      await createPm.mutateAsync({ type: newPmType, label: newPmLabel })
+      setNewPmType('')
+      setNewPmLabel('')
+      setShowAddPm(false)
+    } catch (err: any) {
+      alert(err?.response?.data?.message ?? 'Erro ao adicionar forma de pagamento.')
+    }
   }
 
   function handleSelectPmType(type: string) {
@@ -164,33 +188,43 @@ export default function ConfiguracoesPage() {
 
   async function handleSaveStoreInfo(e: React.FormEvent) {
     e.preventDefault()
-    await updateStoreInfo.mutateAsync({
-      name: storeName || undefined,
-      phone: storePhone || undefined,
-      whatsapp: storeWhatsapp || undefined,
-      address: storeAddress || undefined,
-      number: storeNumber || undefined,
-      district: storeDistrict || undefined,
-      city: storeCity || undefined,
-      state: storeState || undefined,
-      zipCode: storeZipCode || undefined,
-      description: storeDescription || undefined,
-      instagram: storeInstagram || undefined,
-      facebook: storeFacebook || undefined,
-    })
-    setStoreInfoSaved(true)
-    setTimeout(() => setStoreInfoSaved(false), 3000)
+    setStoreInfoError('')
+    try {
+      await updateStoreInfo.mutateAsync({
+        name: storeName || undefined,
+        phone: storePhone || undefined,
+        whatsapp: storeWhatsapp || undefined,
+        address: storeAddress || undefined,
+        number: storeNumber || undefined,
+        district: storeDistrict || undefined,
+        city: storeCity || undefined,
+        state: storeState || undefined,
+        zipCode: storeZipCode || undefined,
+        description: storeDescription || undefined,
+        instagram: storeInstagram || undefined,
+        facebook: storeFacebook || undefined,
+      })
+      setStoreInfoSaved(true)
+      setTimeout(() => setStoreInfoSaved(false), 3000)
+    } catch (err: any) {
+      setStoreInfoError(err?.response?.data?.message ?? 'Erro ao salvar dados da loja.')
+    }
   }
 
   async function handleSaveAppearance(e: React.FormEvent) {
     e.preventDefault()
-    await updateSettings.mutateAsync({
-      primaryColor,
-      layoutStyle,
-      bannerUrl: bannerUrl.trim() || undefined,
-    })
-    setAppearanceSuccess(true)
-    setTimeout(() => setAppearanceSuccess(false), 3000)
+    setAppearanceError('')
+    try {
+      await updateSettings.mutateAsync({
+        primaryColor,
+        layoutStyle,
+        bannerUrl: bannerUrl.trim() || undefined,
+      })
+      setAppearanceSuccess(true)
+      setTimeout(() => setAppearanceSuccess(false), 3000)
+    } catch (err: any) {
+      setAppearanceError(err?.response?.data?.message ?? 'Erro ao salvar aparência.')
+    }
   }
 
   const existingTypes = new Set(settings.paymentMethods.map((pm) => pm.type))
@@ -275,6 +309,7 @@ export default function ConfiguracoesPage() {
                 className="w-full h-10 rounded-xl border border-input px-3 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring" />
             </div>
           </div>
+          {storeInfoError && <p className="text-sm text-destructive">{storeInfoError}</p>}
           <button type="submit" disabled={updateStoreInfo.isPending}
             className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60 hover:bg-primary/90 transition">
             {storeInfoSaved ? <><Check className="h-4 w-4" />Salvo!</> : updateStoreInfo.isPending ? 'Salvando...' : 'Salvar Dados da Loja'}
@@ -317,7 +352,10 @@ export default function ConfiguracoesPage() {
                 </button>
                 {/* Delete */}
                 <button
-                  onClick={() => deletePm.mutate(pm.id)}
+                  onClick={() => {
+                    if (confirm(`Remover "${pm.label}" como forma de pagamento?`))
+                      deletePm.mutate(pm.id)
+                  }}
                   className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -428,6 +466,7 @@ export default function ConfiguracoesPage() {
             <p className="text-xs text-muted-foreground">Nome da instância criada no painel da Evolution API.</p>
           </div>
 
+          {evolutionError && <p className="text-sm text-destructive">{evolutionError}</p>}
           <button
             type="submit"
             disabled={updateSettings.isPending}
@@ -466,6 +505,7 @@ export default function ConfiguracoesPage() {
             <input type="checkbox" checked={mpSandbox} onChange={e => setMpSandbox(e.target.checked)} className="h-4 w-4 rounded" />
             <span className="text-sm">Modo sandbox (testes)</span>
           </label>
+          {mpError && <p className="text-sm text-destructive">{mpError}</p>}
           <button type="submit" disabled={updateSettings.isPending}
             className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60 hover:bg-primary/90 transition">
             {mpSuccess ? <><Check className="h-4 w-4" /> Salvo!</> : updateSettings.isPending ? 'Salvando...' : 'Salvar Mercado Pago'}
@@ -531,6 +571,7 @@ export default function ConfiguracoesPage() {
           >
             {asaasSuccess ? <><Check className="h-4 w-4" /> Salvo!</> : updateSettings.isPending ? 'Salvando...' : 'Salvar configuração'}
           </button>
+          {asaasError && <p className="text-sm text-destructive">{asaasError}</p>}
         </form>
       </section>
 
@@ -658,34 +699,40 @@ export default function ConfiguracoesPage() {
           >
             {appearanceSuccess ? <><Check className="h-4 w-4" /> Salvo!</> : updateSettings.isPending ? 'Salvando...' : 'Salvar aparência'}
           </button>
+          {appearanceError && <p className="text-sm text-destructive">{appearanceError}</p>}
         </form>
       </section>
 
       {/* ── Marketing & Rastreamento ── */}
-      <MarketingSection settings={settings} updateSettings={updateSettings} />
+      <MarketingSection settings={settings} />
 
       {/* ── Avisos no Cardápio ── */}
-      <NoticeSection settings={settings} updateSettings={updateSettings} />
+      <NoticeSection settings={settings} />
 
       {/* ── Som de Pedidos ── */}
-      <SoundSection settings={settings} updateSettings={updateSettings} />
+      <SoundSection settings={settings} />
 
       {/* ── Domínio Próprio ── */}
-      <DomainSection settings={settings} updateSettings={updateSettings} />
+      <DomainSection settings={settings} />
     </div>
     </div>
   )
 }
 
-function MarketingSection({ settings, updateSettings }: { settings: any; updateSettings: any }) {
+function MarketingSection({ settings }: { settings: any }) {
+  const updateSettings = useUpdateSettings()
   const [pixelId, setPixelId] = useState(settings?.facebookPixelId ?? '')
   const [gtmId, setGtmId] = useState(settings?.googleTagManagerId ?? '')
   const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
   useEffect(() => { setPixelId(settings?.facebookPixelId ?? ''); setGtmId(settings?.googleTagManagerId ?? '') }, [settings])
   async function save(e: React.FormEvent) {
     e.preventDefault()
-    await updateSettings.mutateAsync({ facebookPixelId: pixelId || null, googleTagManagerId: gtmId || null })
-    setSaved(true); setTimeout(() => setSaved(false), 2500)
+    setError('')
+    try {
+      await updateSettings.mutateAsync({ facebookPixelId: pixelId || null, googleTagManagerId: gtmId || null })
+      setSaved(true); setTimeout(() => setSaved(false), 2500)
+    } catch (err: any) { setError(err?.response?.data?.message ?? 'Erro ao salvar.') }
   }
   return (
     <section className="rounded-2xl border bg-card p-5 space-y-4">
@@ -705,6 +752,7 @@ function MarketingSection({ settings, updateSettings }: { settings: any; updateS
           <input value={gtmId} onChange={e => setGtmId(e.target.value)} placeholder="GTM-XXXXXXX"
             className="w-full h-10 rounded-xl border border-input px-3 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring" />
         </div>
+        {error && <p className="text-sm text-destructive">{error}</p>}
         <button type="submit" disabled={updateSettings.isPending}
           className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60 hover:bg-primary/90 transition">
           {saved ? <><Check className="h-4 w-4" />Salvo!</> : 'Salvar'}
@@ -714,15 +762,20 @@ function MarketingSection({ settings, updateSettings }: { settings: any; updateS
   )
 }
 
-function NoticeSection({ settings, updateSettings }: { settings: any; updateSettings: any }) {
+function NoticeSection({ settings }: { settings: any }) {
+  const updateSettings = useUpdateSettings()
   const [notice, setNotice] = useState(settings?.storeNotice ?? '')
   const [type, setType] = useState(settings?.storeNoticeType ?? 'info')
   const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
   useEffect(() => { setNotice(settings?.storeNotice ?? ''); setType(settings?.storeNoticeType ?? 'info') }, [settings])
   async function save(e: React.FormEvent) {
     e.preventDefault()
-    await updateSettings.mutateAsync({ storeNotice: notice || null, storeNoticeType: type })
-    setSaved(true); setTimeout(() => setSaved(false), 2500)
+    setError('')
+    try {
+      await updateSettings.mutateAsync({ storeNotice: notice || null, storeNoticeType: type })
+      setSaved(true); setTimeout(() => setSaved(false), 2500)
+    } catch (err: any) { setError(err?.response?.data?.message ?? 'Erro ao salvar.') }
   }
   return (
     <section className="rounded-2xl border bg-card p-5 space-y-4">
@@ -740,12 +793,13 @@ function NoticeSection({ settings, updateSettings }: { settings: any; updateSett
         <textarea value={notice} onChange={e => setNotice(e.target.value)} rows={2}
           placeholder="Ex: Estamos com alta demanda. O tempo de entrega pode ser maior hoje."
           className="w-full rounded-xl border border-input px-3 py-2 text-sm resize-none bg-background focus:outline-none focus:ring-2 focus:ring-ring" />
+        {error && <p className="text-sm text-destructive">{error}</p>}
         <div className="flex gap-2">
           <button type="submit" disabled={updateSettings.isPending}
             className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60 hover:bg-primary/90 transition">
             {saved ? <><Check className="h-4 w-4" />Salvo!</> : 'Salvar Aviso'}
           </button>
-          {notice && <button type="button" onClick={() => updateSettings.mutateAsync({ storeNotice: null })}
+          {notice && <button type="button" onClick={() => updateSettings.mutate({ storeNotice: null })}
             className="rounded-xl border px-4 py-2.5 text-sm text-muted-foreground hover:bg-muted transition">Remover aviso</button>}
         </div>
       </form>
@@ -753,7 +807,8 @@ function NoticeSection({ settings, updateSettings }: { settings: any; updateSett
   )
 }
 
-function SoundSection({ settings, updateSettings }: { settings: any; updateSettings: any }) {
+function SoundSection({ settings }: { settings: any }) {
+  const updateSettings = useUpdateSettings()
   const SOUNDS = [
     { label: 'Padrão (sino)', value: '' },
     { label: 'Campainha', value: '/sounds/bell.mp3' },
@@ -763,11 +818,15 @@ function SoundSection({ settings, updateSettings }: { settings: any; updateSetti
   ]
   const [sound, setSound] = useState(settings?.orderSoundUrl ?? '')
   const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
   useEffect(() => { setSound(settings?.orderSoundUrl ?? '') }, [settings])
   async function save() {
-    await updateSettings.mutateAsync({ orderSoundUrl: sound || null })
-    setSaved(true); setTimeout(() => setSaved(false), 2500)
-    if (sound) { const a = new Audio(sound); a.play().catch(() => {}) }
+    setError('')
+    try {
+      await updateSettings.mutateAsync({ orderSoundUrl: sound || null })
+      setSaved(true); setTimeout(() => setSaved(false), 2500)
+      if (sound) { const a = new Audio(sound); a.play().catch(() => {}) }
+    } catch (err: any) { setError(err?.response?.data?.message ?? 'Erro ao salvar.') }
   }
   return (
     <section className="rounded-2xl border bg-card p-5 space-y-4">
@@ -784,6 +843,7 @@ function SoundSection({ settings, updateSettings }: { settings: any; updateSetti
           </button>
         ))}
       </div>
+      {error && <p className="text-sm text-destructive">{error}</p>}
       <button onClick={save} disabled={updateSettings.isPending}
         className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60 hover:bg-primary/90 transition">
         {saved ? <><Check className="h-4 w-4" />Salvo!</> : 'Salvar Som'}
@@ -792,14 +852,19 @@ function SoundSection({ settings, updateSettings }: { settings: any; updateSetti
   )
 }
 
-function DomainSection({ settings, updateSettings }: { settings: any; updateSettings: any }) {
+function DomainSection({ settings }: { settings: any }) {
+  const updateSettings = useUpdateSettings()
   const [domain, setDomain] = useState(settings?.customDomain ?? '')
   const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
   useEffect(() => { setDomain(settings?.customDomain ?? '') }, [settings])
   async function save(e: React.FormEvent) {
     e.preventDefault()
-    await updateSettings.mutateAsync({ customDomain: domain || null })
-    setSaved(true); setTimeout(() => setSaved(false), 2500)
+    setError('')
+    try {
+      await updateSettings.mutateAsync({ customDomain: domain || null })
+      setSaved(true); setTimeout(() => setSaved(false), 2500)
+    } catch (err: any) { setError(err?.response?.data?.message ?? 'Erro ao salvar.') }
   }
   return (
     <section className="rounded-2xl border bg-card p-5 space-y-4">
@@ -816,6 +881,7 @@ function DomainSection({ settings, updateSettings }: { settings: any; updateSett
           <p>2. Aguarde até 24h para propagação do DNS</p>
           <p>3. Salve o domínio abaixo para ativá-lo no sistema</p>
         </div>
+        {error && <p className="text-sm text-destructive">{error}</p>}
         <button type="submit" disabled={updateSettings.isPending}
           className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60 hover:bg-primary/90 transition">
           {saved ? <><Check className="h-4 w-4" />Salvo!</> : 'Salvar Domínio'}
