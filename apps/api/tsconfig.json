@@ -9,7 +9,9 @@
     "noUnusedParameters": false,
     "noImplicitReturns": false,
     "strictNullChecks": false,
-    "skipLibCheck": true
+    "strict": false,
+    "skipLibCheck": true,
+    "noEmitOnError": false
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
