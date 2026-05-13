@@ -27,6 +27,67 @@ const STATS = [
   { value: '∞', label: 'Pedidos por mês' },
 ]
 
+const PLANS = [
+  {
+    name: 'Grátis',
+    tagline: 'Pra começar sem medo',
+    price: '0',
+    period: 'pra sempre',
+    cta: 'Começar grátis',
+    highlight: false,
+    color: 'from-gray-400 to-gray-500',
+    features: [
+      'Cardápio digital ilimitado',
+      'Até 50 pedidos por mês',
+      '1 usuário',
+      'Link próprio da loja',
+      'PIX manual (sem gateway)',
+      'Relatórios básicos',
+      'Suporte por email',
+    ],
+  },
+  {
+    name: 'Pro',
+    tagline: 'Pra quem quer crescer',
+    price: '79',
+    period: '/mês',
+    cta: 'Assinar Pro',
+    highlight: true,
+    color: 'from-orange-500 to-pink-500',
+    badge: 'MAIS POPULAR',
+    features: [
+      'Pedidos ilimitados',
+      'WhatsApp automatizado (Evolution)',
+      'PIX automático (Asaas/Mercado Pago)',
+      'Cupons e cashback',
+      'Estoque + Controle de caixa (PDV)',
+      'Até 5 usuários',
+      'Relatórios completos + Exportação CSV',
+      'Suporte prioritário no WhatsApp',
+    ],
+  },
+  {
+    name: 'Elite',
+    tagline: 'Pra dominar o mercado',
+    price: '199',
+    period: '/mês',
+    cta: 'Falar com vendas',
+    highlight: false,
+    color: 'from-purple-500 to-indigo-600',
+    features: [
+      'Tudo do Pro',
+      'Programa de fidelidade (pontos)',
+      'Sorteios e gamificação',
+      'QR Code de mesas (autoatendimento)',
+      'IA atendente virtual',
+      'Domínio próprio',
+      'Usuários ilimitados',
+      'Múltiplas lojas (matriz/filial)',
+      'Suporte VIP 24/7 + Consultoria',
+    ],
+  },
+]
+
 const FAQ = [
   {
     q: 'Preciso pagar comissão por pedido?',
@@ -68,6 +129,7 @@ export default function LandingPage() {
             <span className="font-black text-lg bg-gradient-to-r from-orange-500 to-pink-500 bg-clip-text text-transparent">DeliveryFlow</span>
           </div>
           <div className="flex items-center gap-3">
+            <a href="#planos" className="text-sm font-semibold text-gray-700 hover:text-orange-500 transition hidden sm:block">Planos</a>
             <Link href="/login" className="text-sm font-semibold text-gray-700 hover:text-orange-500 transition hidden sm:block">Entrar</Link>
             <Link href="/register" className="rounded-full bg-gradient-to-r from-orange-500 to-pink-500 px-5 py-2.5 text-sm font-bold text-white hover:shadow-lg hover:shadow-orange-500/40 transition-all hover:-translate-y-0.5">
               Começar grátis
@@ -303,6 +365,102 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ── PRICING ── */}
+      <section id="planos" className="px-4 sm:px-6 py-24">
+        <div className="mx-auto max-w-7xl space-y-16">
+          <div className="text-center space-y-4 max-w-3xl mx-auto">
+            <div className="inline-flex items-center gap-2 rounded-full bg-orange-500/10 px-4 py-1.5 text-xs font-bold text-orange-600">
+              <Sparkles className="h-3.5 w-3.5" />
+              ESCOLHA SEU PLANO
+            </div>
+            <h2 className="text-3xl sm:text-5xl font-black tracking-tight">
+              Comece grátis.
+              <br />
+              <span className="bg-gradient-to-r from-orange-500 to-pink-500 bg-clip-text text-transparent">
+                Cresça no seu ritmo.
+              </span>
+            </h2>
+            <p className="text-lg text-gray-600">
+              Sem fidelidade. Cancele quando quiser. Mude de plano a qualquer momento.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-6 max-w-6xl mx-auto">
+            {PLANS.map((plan) => (
+              <div
+                key={plan.name}
+                className={`relative rounded-3xl p-8 flex flex-col transition-all duration-300 ${
+                  plan.highlight
+                    ? 'bg-gradient-to-br from-orange-500 to-pink-500 text-white shadow-2xl shadow-orange-500/30 scale-105 lg:scale-110 ring-4 ring-orange-500/20'
+                    : 'bg-white border-2 border-gray-100 hover:border-orange-300 hover:-translate-y-1 hover:shadow-xl'
+                }`}
+              >
+                {plan.badge && (
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 rounded-full bg-yellow-400 px-4 py-1 text-xs font-black text-orange-900 shadow-lg">
+                    ⚡ {plan.badge}
+                  </div>
+                )}
+
+                {/* Header */}
+                <div className="space-y-2 mb-6">
+                  <h3 className={`text-2xl font-black ${plan.highlight ? 'text-white' : 'text-gray-900'}`}>
+                    {plan.name}
+                  </h3>
+                  <p className={`text-sm ${plan.highlight ? 'text-white/80' : 'text-gray-500'}`}>
+                    {plan.tagline}
+                  </p>
+                </div>
+
+                {/* Price */}
+                <div className="mb-6">
+                  <div className="flex items-baseline gap-1">
+                    <span className={`text-2xl font-bold ${plan.highlight ? 'text-white/80' : 'text-gray-500'}`}>R$</span>
+                    <span className={`text-6xl font-black ${plan.highlight ? 'text-white' : 'text-gray-900'}`}>
+                      {plan.price}
+                    </span>
+                    <span className={`text-sm ${plan.highlight ? 'text-white/80' : 'text-gray-500'}`}>
+                      {plan.period}
+                    </span>
+                  </div>
+                </div>
+
+                {/* CTA */}
+                <Link
+                  href="/register"
+                  className={`block text-center rounded-2xl px-6 py-3.5 font-bold text-sm mb-6 transition-all ${
+                    plan.highlight
+                      ? 'bg-white text-orange-600 hover:shadow-lg hover:scale-105'
+                      : 'bg-gray-900 text-white hover:bg-gray-800 hover:shadow-lg'
+                  }`}
+                >
+                  {plan.cta}
+                </Link>
+
+                {/* Features */}
+                <ul className="space-y-3 flex-1">
+                  {plan.features.map((feature) => (
+                    <li key={feature} className={`flex items-start gap-2 text-sm ${plan.highlight ? 'text-white/95' : 'text-gray-700'}`}>
+                      <div
+                        className={`mt-0.5 h-5 w-5 rounded-full flex items-center justify-center shrink-0 ${
+                          plan.highlight ? 'bg-white/20' : 'bg-gradient-to-br ' + plan.color
+                        }`}
+                      >
+                        <Check className={`h-3 w-3 ${plan.highlight ? 'text-white' : 'text-white'}`} />
+                      </div>
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-center text-sm text-gray-500">
+            💳 Aceitamos cartão e PIX · 🔒 Pagamento 100% seguro · 🚀 Ative na hora
+          </p>
+        </div>
+      </section>
+
       {/* ── FAQ ── */}
       <section className="px-4 sm:px-6 py-24 bg-gray-50">
         <div className="mx-auto max-w-3xl space-y-12">
@@ -364,9 +522,10 @@ export default function LandingPage() {
             <span className="font-black text-white">DeliveryFlow</span>
           </div>
           <div className="flex gap-6 text-sm">
+            <a href="#features" className="hover:text-white transition">Funcionalidades</a>
+            <a href="#planos" className="hover:text-white transition">Planos</a>
             <Link href="/login" className="hover:text-white transition">Entrar</Link>
             <Link href="/register" className="hover:text-white transition">Cadastrar</Link>
-            <a href="#features" className="hover:text-white transition">Funcionalidades</a>
           </div>
           <p className="text-xs">© {new Date().getFullYear()} DeliveryFlow. Todos os direitos reservados.</p>
         </div>
