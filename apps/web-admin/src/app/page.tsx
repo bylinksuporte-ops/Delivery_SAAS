@@ -370,6 +370,14 @@ export default function LandingPage() {
           </div>
           <p className="text-xs">© {new Date().getFullYear()} DeliveryFlow. Todos os direitos reservados.</p>
         </div>
+        <div className="mx-auto max-w-6xl mt-6 pt-6 border-t border-gray-800 text-center">
+          <p className="text-xs text-gray-500">
+            Produzido por{' '}
+            <span className="font-semibold bg-gradient-to-r from-orange-400 to-pink-400 bg-clip-text text-transparent">
+              Pedro Vaz
+            </span>
+          </p>
+        </div>
       </footer>
     </div>
   )
