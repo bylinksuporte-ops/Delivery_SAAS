@@ -149,6 +149,7 @@ const orderRoutes: FastifyPluginAsync = async (app) => {
     // Aplica cupom (se houver)
     let discount = 0
     let couponId: string | null = null
+    let appliedCouponType: string | null = null
     if (d.couponCode) {
       const coupon = await app.prisma.coupon.findUnique({
         where: { storeId_code: { storeId: store.id, code: d.couponCode.toUpperCase() } },
@@ -157,6 +158,7 @@ const orderRoutes: FastifyPluginAsync = async (app) => {
         if (!coupon.maxUses || coupon.usedCount < coupon.maxUses) {
           if (subtotal >= Number(coupon.minOrder)) {
             couponId = coupon.id
+            appliedCouponType = coupon.type
             if (coupon.type === 'PERCENT_DISCOUNT') discount = subtotal * (Number(coupon.value) / 100)
             else if (coupon.type === 'FIXED_DISCOUNT') discount = Math.min(Number(coupon.value), subtotal)
             else if (coupon.type === 'FREE_DELIVERY') discount = 0 // deliveryFee será zerado abaixo
@@ -200,22 +202,20 @@ const orderRoutes: FastifyPluginAsync = async (app) => {
     }
 
     // FREE_DELIVERY zera a taxa de entrega em vez de aplicar desconto no subtotal
-    const couponType = couponId
-      ? (await app.prisma.coupon.findUnique({ where: { id: couponId }, select: { type: true } }))?.type
-      : null
-    const effectiveDeliveryFee = couponType === 'FREE_DELIVERY' ? 0 : deliveryFee
+    const effectiveDeliveryFee = appliedCouponType === 'FREE_DELIVERY' ? 0 : deliveryFee
 
     const total = Math.max(0, subtotal - discount + effectiveDeliveryFee)
 
-    // Número sequencial do pedido na loja
-    const lastOrder = await app.prisma.order.findFirst({
-      where: { storeId: store.id },
-      orderBy: { orderNumber: 'desc' },
-    })
-    const orderNumber = (lastOrder?.orderNumber ?? 0) + 1
-
     // Cria o pedido e incrementa cupom em transação atômica
     const createdOrder = await app.prisma.$transaction(async (tx) => {
+      // orderNumber calculado dentro da transaction para evitar race condition
+      const lastOrder = await tx.order.findFirst({
+        where: { storeId: store.id },
+        orderBy: { orderNumber: 'desc' },
+        select: { orderNumber: true },
+      })
+      const orderNumber = (lastOrder?.orderNumber ?? 0) + 1
+
       const order = await tx.order.create({
         data: {
           storeId: store.id,
@@ -403,7 +403,12 @@ const orderRoutes: FastifyPluginAsync = async (app) => {
 
     const order = await app.prisma.order.findFirst({
       where: { id, storeId: request.user.storeId },
-      include: { items: { select: { productId: true, quantity: true } } },
+      select: {
+        id: true,
+        status: true,
+        couponId: true,
+        items: { select: { productId: true, quantity: true } },
+      },
     })
     if (!order) return reply.status(404).send({ error: 'Not Found', message: 'Pedido não encontrado', statusCode: 404 })
 
@@ -440,20 +445,29 @@ const orderRoutes: FastifyPluginAsync = async (app) => {
       }
     }
 
-    // Restaura estoque se pedido for cancelado (apenas se veio de CONFIRMED+)
-    const postConfirmedStatuses = new Set(['CONFIRMED', 'IN_PRODUCTION', 'OUT_FOR_DELIVERY', 'READY_FOR_PICKUP'])
-    if (status === 'CANCELLED' && postConfirmedStatuses.has(order.status)) {
-      for (const item of order.items) {
-        await app.prisma.product.updateMany({
-          where: {
-            id: item.productId,
-            storeId: request.user.storeId,
-            stockControl: true,
-          },
-          data: {
-            stockQty: { increment: item.quantity },
-            isActive: true,
-          },
+    // Restaura estoque e cupom se pedido for cancelado
+    if (status === 'CANCELLED') {
+      const postConfirmedStatuses = new Set(['CONFIRMED', 'IN_PRODUCTION', 'OUT_FOR_DELIVERY', 'READY_FOR_PICKUP'])
+      if (postConfirmedStatuses.has(order.status)) {
+        for (const item of order.items) {
+          await app.prisma.product.updateMany({
+            where: {
+              id: item.productId,
+              storeId: request.user.storeId,
+              stockControl: true,
+            },
+            data: {
+              stockQty: { increment: item.quantity },
+              isActive: true,
+            },
+          })
+        }
+      }
+      // Devolve uso do cupom independente do status anterior
+      if (order.couponId) {
+        await app.prisma.coupon.update({
+          where: { id: order.couponId },
+          data: { usedCount: { decrement: 1 } },
         })
       }
     }

@@ -329,7 +329,13 @@ const settingsRoutes: FastifyPluginAsync = async (app) => {
         where: { storeId },
         _sum: { usedCount: true },
       }),
-      app.prisma.coupon.count({ where: { storeId, isActive: true } }),
+      app.prisma.coupon.count({
+        where: {
+          storeId,
+          isActive: true,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+        },
+      }),
       app.prisma.coupon.findMany({
         where: { storeId, usedCount: { gt: 0 } },
         orderBy: { usedCount: 'desc' },

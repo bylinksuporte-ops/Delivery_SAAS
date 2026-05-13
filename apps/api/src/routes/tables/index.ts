@@ -66,6 +66,16 @@ const tableRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(404).send({ error: 'Not Found', message: 'Mesa não encontrada', statusCode: 404 })
     }
 
+    // Verifica conflito de número (excluindo a própria mesa)
+    if (result.data.number !== undefined && result.data.number !== existing.number) {
+      const conflict = await app.prisma.table.findFirst({
+        where: { storeId: request.user.storeId, number: result.data.number, id: { not: id } },
+      })
+      if (conflict) {
+        return reply.status(409).send({ error: 'Conflict', message: `Mesa ${result.data.number} já existe`, statusCode: 409 })
+      }
+    }
+
     const table = await app.prisma.table.update({ where: { id }, data: result.data })
     return { data: table }
   })
@@ -79,6 +89,20 @@ const tableRoutes: FastifyPluginAsync = async (app) => {
     })
     if (!existing) {
       return reply.status(404).send({ error: 'Not Found', message: 'Mesa não encontrada', statusCode: 404 })
+    }
+
+    const activeOrders = await app.prisma.order.count({
+      where: {
+        tableId: id,
+        status: { in: ['PENDING', 'CONFIRMED', 'IN_PRODUCTION', 'READY_FOR_PICKUP'] },
+      },
+    })
+    if (activeOrders > 0) {
+      return reply.status(409).send({
+        error: 'Conflict',
+        message: `Mesa possui ${activeOrders} pedido(s) em andamento. Finalize-os antes de excluir a mesa.`,
+        statusCode: 409,
+      })
     }
 
     await app.prisma.table.delete({ where: { id } })

@@ -7,6 +7,7 @@ import {
   Star, Check, ArrowRight, Smartphone, Clock, Zap, Trophy, Users, ChevronDown,
   Sparkles, Rocket, ShieldCheck,
 } from 'lucide-react'
+import { usePlans } from '@/hooks/use-plans'
 
 const FEATURES = [
   { icon: ShoppingBag, title: 'Cardápio Digital', desc: 'Vitrine online lindona, com fotos, complementos e categorias ilimitadas.', color: 'from-orange-400 to-pink-500' },
@@ -27,65 +28,17 @@ const STATS = [
   { value: '∞', label: 'Pedidos por mês' },
 ]
 
-const PLANS = [
-  {
-    name: 'Grátis',
-    tagline: 'Pra começar sem medo',
-    price: '0',
-    period: 'pra sempre',
-    cta: 'Começar grátis',
-    highlight: false,
-    color: 'from-gray-400 to-gray-500',
-    features: [
-      'Cardápio digital ilimitado',
-      'Até 50 pedidos por mês',
-      '1 usuário',
-      'Link próprio da loja',
-      'PIX manual (sem gateway)',
-      'Relatórios básicos',
-      'Suporte por email',
-    ],
-  },
-  {
-    name: 'Pro',
-    tagline: 'Pra quem quer crescer',
-    price: '79',
-    period: '/mês',
-    cta: 'Assinar Pro',
-    highlight: true,
-    color: 'from-orange-500 to-pink-500',
-    badge: 'MAIS POPULAR',
-    features: [
-      'Pedidos ilimitados',
-      'WhatsApp automatizado (Evolution)',
-      'PIX automático (Asaas/Mercado Pago)',
-      'Cupons e cashback',
-      'Estoque + Controle de caixa (PDV)',
-      'Até 5 usuários',
-      'Relatórios completos + Exportação CSV',
-      'Suporte prioritário no WhatsApp',
-    ],
-  },
-  {
-    name: 'Elite',
-    tagline: 'Pra dominar o mercado',
-    price: '199',
-    period: '/mês',
-    cta: 'Falar com vendas',
-    highlight: false,
-    color: 'from-purple-500 to-indigo-600',
-    features: [
-      'Tudo do Pro',
-      'Programa de fidelidade (pontos)',
-      'Sorteios e gamificação',
-      'QR Code de mesas (autoatendimento)',
-      'IA atendente virtual',
-      'Domínio próprio',
-      'Usuários ilimitados',
-      'Múltiplas lojas (matriz/filial)',
-      'Suporte VIP 24/7 + Consultoria',
-    ],
-  },
+// Planos vêm da API (/plans). Fallback abaixo só caso a API ainda não tenha planos cadastrados.
+const FALLBACK_PLANS = [
+  { slug: 'gratis', name: 'Grátis', tagline: 'Pra começar sem medo', monthlyPrice: 0,
+    color: 'from-gray-400 to-gray-500', highlight: false, badge: null,
+    features: ['Cardápio digital ilimitado', 'Até 50 pedidos por mês', '1 usuário', 'PIX manual', 'Relatórios básicos'] },
+  { slug: 'pro', name: 'Pro', tagline: 'Pra quem quer crescer', monthlyPrice: 79,
+    color: 'from-orange-500 to-pink-500', highlight: true, badge: 'MAIS POPULAR',
+    features: ['Pedidos ilimitados', 'WhatsApp automatizado', 'PIX automático', 'Cupons + cashback', 'PDV completo', '5 usuários'] },
+  { slug: 'elite', name: 'Elite', tagline: 'Pra dominar o mercado', monthlyPrice: 199,
+    color: 'from-purple-500 to-indigo-600', highlight: false, badge: null,
+    features: ['Tudo do Pro', 'Programa de fidelidade', 'Sorteios', 'QR Code mesas', 'IA atendente', 'Domínio próprio', 'Multi-lojas'] },
 ]
 
 const FAQ = [
@@ -117,6 +70,8 @@ const FAQ = [
 
 export default function LandingPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(null)
+  const { data: apiPlans } = usePlans()
+  const plans = (apiPlans && apiPlans.length > 0 ? apiPlans : FALLBACK_PLANS) as Array<typeof FALLBACK_PLANS[number] & { stripePriceId?: string | null }>
 
   return (
     <div className="min-h-screen bg-white text-gray-900 overflow-x-hidden">
@@ -386,73 +341,71 @@ export default function LandingPage() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-6 max-w-6xl mx-auto">
-            {PLANS.map((plan) => (
-              <div
-                key={plan.name}
-                className={`relative rounded-3xl p-8 flex flex-col transition-all duration-300 ${
-                  plan.highlight
-                    ? 'bg-gradient-to-br from-orange-500 to-pink-500 text-white shadow-2xl shadow-orange-500/30 scale-105 lg:scale-110 ring-4 ring-orange-500/20'
-                    : 'bg-white border-2 border-gray-100 hover:border-orange-300 hover:-translate-y-1 hover:shadow-xl'
-                }`}
-              >
-                {plan.badge && (
-                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 rounded-full bg-yellow-400 px-4 py-1 text-xs font-black text-orange-900 shadow-lg">
-                    ⚡ {plan.badge}
-                  </div>
-                )}
-
-                {/* Header */}
-                <div className="space-y-2 mb-6">
-                  <h3 className={`text-2xl font-black ${plan.highlight ? 'text-white' : 'text-gray-900'}`}>
-                    {plan.name}
-                  </h3>
-                  <p className={`text-sm ${plan.highlight ? 'text-white/80' : 'text-gray-500'}`}>
-                    {plan.tagline}
-                  </p>
-                </div>
-
-                {/* Price */}
-                <div className="mb-6">
-                  <div className="flex items-baseline gap-1">
-                    <span className={`text-2xl font-bold ${plan.highlight ? 'text-white/80' : 'text-gray-500'}`}>R$</span>
-                    <span className={`text-6xl font-black ${plan.highlight ? 'text-white' : 'text-gray-900'}`}>
-                      {plan.price}
-                    </span>
-                    <span className={`text-sm ${plan.highlight ? 'text-white/80' : 'text-gray-500'}`}>
-                      {plan.period}
-                    </span>
-                  </div>
-                </div>
-
-                {/* CTA */}
-                <Link
-                  href="/register"
-                  className={`block text-center rounded-2xl px-6 py-3.5 font-bold text-sm mb-6 transition-all ${
+            {plans.map((plan) => {
+              const isFree = Number(plan.monthlyPrice) === 0
+              const ctaText = isFree ? 'Começar grátis' : plan.highlight ? `Assinar ${plan.name}` : 'Escolher plano'
+              return (
+                <div
+                  key={plan.slug}
+                  className={`relative rounded-3xl p-8 flex flex-col transition-all duration-300 ${
                     plan.highlight
-                      ? 'bg-white text-orange-600 hover:shadow-lg hover:scale-105'
-                      : 'bg-gray-900 text-white hover:bg-gray-800 hover:shadow-lg'
+                      ? 'bg-gradient-to-br from-orange-500 to-pink-500 text-white shadow-2xl shadow-orange-500/30 scale-105 lg:scale-110 ring-4 ring-orange-500/20'
+                      : 'bg-white border-2 border-gray-100 hover:border-orange-300 hover:-translate-y-1 hover:shadow-xl'
                   }`}
                 >
-                  {plan.cta}
-                </Link>
+                  {plan.badge && (
+                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 rounded-full bg-yellow-400 px-4 py-1 text-xs font-black text-orange-900 shadow-lg">
+                      ⚡ {plan.badge}
+                    </div>
+                  )}
 
-                {/* Features */}
-                <ul className="space-y-3 flex-1">
-                  {plan.features.map((feature) => (
-                    <li key={feature} className={`flex items-start gap-2 text-sm ${plan.highlight ? 'text-white/95' : 'text-gray-700'}`}>
-                      <div
-                        className={`mt-0.5 h-5 w-5 rounded-full flex items-center justify-center shrink-0 ${
+                  <div className="space-y-2 mb-6">
+                    <h3 className={`text-2xl font-black ${plan.highlight ? 'text-white' : 'text-gray-900'}`}>
+                      {plan.name}
+                    </h3>
+                    <p className={`text-sm ${plan.highlight ? 'text-white/80' : 'text-gray-500'}`}>
+                      {plan.tagline}
+                    </p>
+                  </div>
+
+                  <div className="mb-6">
+                    <div className="flex items-baseline gap-1">
+                      <span className={`text-2xl font-bold ${plan.highlight ? 'text-white/80' : 'text-gray-500'}`}>R$</span>
+                      <span className={`text-6xl font-black ${plan.highlight ? 'text-white' : 'text-gray-900'}`}>
+                        {Number(plan.monthlyPrice).toFixed(0)}
+                      </span>
+                      <span className={`text-sm ${plan.highlight ? 'text-white/80' : 'text-gray-500'}`}>
+                        {isFree ? 'pra sempre' : '/mês'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <Link
+                    href={`/register?plan=${plan.slug}`}
+                    className={`block text-center rounded-2xl px-6 py-3.5 font-bold text-sm mb-6 transition-all ${
+                      plan.highlight
+                        ? 'bg-white text-orange-600 hover:shadow-lg hover:scale-105'
+                        : 'bg-gray-900 text-white hover:bg-gray-800 hover:shadow-lg'
+                    }`}
+                  >
+                    {ctaText}
+                  </Link>
+
+                  <ul className="space-y-3 flex-1">
+                    {plan.features.map((feature) => (
+                      <li key={feature} className={`flex items-start gap-2 text-sm ${plan.highlight ? 'text-white/95' : 'text-gray-700'}`}>
+                        <div className={`mt-0.5 h-5 w-5 rounded-full flex items-center justify-center shrink-0 ${
                           plan.highlight ? 'bg-white/20' : 'bg-gradient-to-br ' + plan.color
-                        }`}
-                      >
-                        <Check className={`h-3 w-3 ${plan.highlight ? 'text-white' : 'text-white'}`} />
-                      </div>
-                      <span>{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+                        }`}>
+                          <Check className="h-3 w-3 text-white" />
+                        </div>
+                        <span>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )
+            })}
           </div>
 
           <p className="text-center text-sm text-gray-500">

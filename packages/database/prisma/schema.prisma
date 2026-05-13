@@ -95,6 +95,78 @@ model Store {
   customerLoyalties CustomerLoyalty[]
   raffles           Raffle[]
   internalNotices   InternalNotice[]
+
+  // Assinatura
+  subscription      Subscription?
+  stripeCustomerId  String?       @unique
+}
+
+// ─────────────────────────────────────────
+// PLANOS E ASSINATURAS (STRIPE)
+// ─────────────────────────────────────────
+
+model Plan {
+  id              String   @id @default(uuid())
+  slug            String   @unique  // ex: "gratis", "pro", "elite"
+  name            String                  // "Grátis", "Pro", "Elite"
+  tagline         String?                 // "Pra começar sem medo"
+  monthlyPrice    Decimal  @default(0)    // valor em R$ (informativo, fonte da verdade é o Stripe)
+
+  // Stripe
+  stripeProductId String?  @unique
+  stripePriceId   String?  @unique        // price_id mensal no Stripe
+
+  // Features e limites (JSON)
+  features        Json     @default("[]") // string[] - lista de features para exibir
+  limits          Json     @default("{}") // { maxOrders, maxUsers, maxStores, etc }
+
+  // Cores e destaque (para a landing)
+  color           String   @default("from-gray-400 to-gray-500")
+  highlight       Boolean  @default(false)
+  badge           String?
+
+  isActive        Boolean  @default(true)
+  position        Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  subscriptions   Subscription[]
+
+  @@index([isActive, position])
+}
+
+model Subscription {
+  id                    String              @id @default(uuid())
+  storeId               String              @unique
+  planId                String
+  status                SubscriptionStatus  @default(TRIALING)
+
+  // Stripe
+  stripeSubscriptionId  String?             @unique
+  stripeCustomerId      String?
+
+  trialEndsAt           DateTime?
+  currentPeriodStart    DateTime?
+  currentPeriodEnd      DateTime?
+  canceledAt            DateTime?
+  cancelAtPeriodEnd     Boolean             @default(false)
+
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  store                 Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  plan                  Plan                @relation(fields: [planId], references: [id])
+
+  @@index([status])
+}
+
+enum SubscriptionStatus {
+  TRIALING       // período de teste grátis
+  ACTIVE         // pagando normalmente
+  PAST_DUE       // pagamento falhou, ainda no período de carência
+  CANCELED       // cancelada
+  INCOMPLETE     // checkout não concluído
+  UNPAID         // suspensa por inadimplência
 }
 
 // ─────────────────────────────────────────

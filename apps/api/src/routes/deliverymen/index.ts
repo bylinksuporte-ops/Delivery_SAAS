@@ -17,7 +17,7 @@ const deliverymenRoutes: FastifyPluginAsync = async (app) => {
       where: { storeId: request.user.storeId },
       orderBy: { name: 'asc' },
       include: {
-        _count: { select: { orders: true } },
+        _count: { select: { orders: { where: { status: 'DELIVERED' } } } },
       },
     })
     return {

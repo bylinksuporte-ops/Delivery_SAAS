@@ -70,7 +70,8 @@ const raffleRoutes: FastifyPluginAsync = async (app) => {
       include: { entries: true },
     })
     if (!raffle) return reply.status(404).send({ error: 'Not Found', message: 'Sorteio não encontrado', statusCode: 404 })
-    if (raffle.entries.length === 0) return reply.status(422).send({ error: 'Empty', message: 'Nenhum participante', statusCode: 422 })
+    if (raffle.status !== 'OPEN') return reply.status(422).send({ error: 'Unavailable', message: 'Apenas sorteios abertos podem ser sorteados', statusCode: 422 })
+    if (raffle.entries.length === 0) return reply.status(422).send({ error: 'Empty', message: 'Nenhum participante inscrito', statusCode: 422 })
 
     const winner = raffle.entries[Math.floor(Math.random() * raffle.entries.length)]!
     const updated = await app.prisma.raffle.update({
@@ -98,6 +99,14 @@ const raffleRoutes: FastifyPluginAsync = async (app) => {
 
     const raffle = await app.prisma.raffle.findUnique({ where: { id }, select: { id: true, storeId: true, status: true } })
     if (!raffle || raffle.status !== 'OPEN') return reply.status(422).send({ error: 'Unavailable', message: 'Sorteio não está aberto', statusCode: 422 })
+
+    // Impede participação duplicada do mesmo telefone
+    const alreadyEntered = await app.prisma.raffleEntry.findFirst({
+      where: { raffleId: id, phone: body.data.phone },
+    })
+    if (alreadyEntered) {
+      return reply.status(409).send({ error: 'Conflict', message: 'Este telefone já está participando deste sorteio', statusCode: 409 })
+    }
 
     // Busca ou cria cliente
     let customer = await app.prisma.customer.findUnique({

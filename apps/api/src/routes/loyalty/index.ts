@@ -62,6 +62,11 @@ const loyaltyRoutes: FastifyPluginAsync = async (app) => {
     const body = schema.safeParse(request.body)
     if (!body.success) return reply.status(400).send({ error: 'Bad Request', message: 'Dados inválidos', statusCode: 400 })
 
+    const customer = await app.prisma.customer.findFirst({
+      where: { id: body.data.customerId, storeId },
+    })
+    if (!customer) return reply.status(404).send({ error: 'Not Found', message: 'Cliente não encontrado', statusCode: 404 })
+
     const loyalty = await app.prisma.customerLoyalty.upsert({
       where: { storeId_customerId: { storeId, customerId: body.data.customerId } },
       create: { storeId, customerId: body.data.customerId, points: body.data.points, totalEarned: body.data.points },
@@ -80,6 +85,11 @@ const loyaltyRoutes: FastifyPluginAsync = async (app) => {
     const schema = z.object({ customerId: z.string().uuid(), points: z.number().int().min(1) })
     const body = schema.safeParse(request.body)
     if (!body.success) return reply.status(400).send({ error: 'Bad Request', message: 'Dados inválidos', statusCode: 400 })
+
+    const customer = await app.prisma.customer.findFirst({
+      where: { id: body.data.customerId, storeId },
+    })
+    if (!customer) return reply.status(404).send({ error: 'Not Found', message: 'Cliente não encontrado', statusCode: 404 })
 
     const existing = await app.prisma.customerLoyalty.findUnique({
       where: { storeId_customerId: { storeId, customerId: body.data.customerId } },

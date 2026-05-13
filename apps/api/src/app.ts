@@ -39,6 +39,8 @@ import reviewRoutes from './routes/reviews/index.js'
 import loyaltyRoutes from './routes/loyalty/index.js'
 import raffleRoutes from './routes/raffles/index.js'
 import noticesRoutes from './routes/notices/index.js'
+import planRoutes from './routes/plans/index.js'
+import stripeWebhookRoutes from './routes/stripe-webhook/index.js'
 
 export function buildApp() {
   const app = Fastify({
@@ -117,6 +119,8 @@ export function buildApp() {
   app.register(loyaltyRoutes, { prefix: '/loyalty' })
   app.register(raffleRoutes, { prefix: '/raffles' })
   app.register(noticesRoutes, { prefix: '/notices' })
+  app.register(planRoutes, { prefix: '/plans' })
+  app.register(stripeWebhookRoutes, { prefix: '/stripe' })
 
   // Health check
   app.get('/health', async () => {

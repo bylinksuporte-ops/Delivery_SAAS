@@ -18,7 +18,7 @@ const addressSchema = z.object({
   complement: z.string().optional(),
   district: z.string().min(1),
   city: z.string().min(1),
-  state: z.string().min(2),
+  state: z.string().min(2).max(2),
   zipCode: z.string().optional(),
   reference: z.string().optional(),
   isDefault: z.boolean().optional(),
@@ -28,9 +28,9 @@ const customerRoutes: FastifyPluginAsync = async (app) => {
 
   // ─── GET /customers ────────────────────────────────────────────────
   app.get('/', { preHandler: [authenticate] }, async (request) => {
-    const { search, page } = request.query as { search?: string; page?: string }
-    const take = 30
-    const skip = ((Number(page) || 1) - 1) * take
+    const { search, page, all } = request.query as { search?: string; page?: string; all?: string }
+    const take = all === 'true' ? 10_000 : 30
+    const skip = all === 'true' ? 0 : ((Number(page) || 1) - 1) * take
 
     const where = {
       storeId: request.user.storeId,
@@ -110,14 +110,31 @@ const customerRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(404).send({ error: 'Not Found', message: 'Cliente não encontrado', statusCode: 404 })
     }
 
-    const completedOrders = customer.orders.filter((o) => o.status === 'DELIVERED')
-    const totalSpent = completedOrders.reduce((s, o) => s + Number(o.total), 0)
-    const avgTicket = completedOrders.length > 0 ? totalSpent / completedOrders.length : 0
+    // Agrega stats de TODOS os pedidos do cliente (não limitado ao take: 20 acima)
+    const [allOrdersAgg, completedAgg] = await Promise.all([
+      app.prisma.order.aggregate({
+        where: { customerId: customer.id, storeId: request.user.storeId },
+        _count: true,
+      }),
+      app.prisma.order.aggregate({
+        where: { customerId: customer.id, storeId: request.user.storeId, status: 'DELIVERED' },
+        _count: true,
+        _sum: { total: true },
+      }),
+    ])
+
+    const totalSpent = Number(completedAgg._sum.total ?? 0)
+    const avgTicket = completedAgg._count > 0 ? totalSpent / completedAgg._count : 0
 
     return {
       data: {
         ...customer,
-        stats: { totalOrders: customer.orders.length, completedOrders: completedOrders.length, totalSpent, avgTicket },
+        stats: {
+          totalOrders: allOrdersAgg._count,
+          completedOrders: completedAgg._count,
+          totalSpent,
+          avgTicket,
+        },
       },
     }
   })

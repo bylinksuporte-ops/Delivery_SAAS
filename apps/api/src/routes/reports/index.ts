@@ -166,15 +166,18 @@ const reportRoutes: FastifyPluginAsync = async (app) => {
           status: { not: 'CANCELLED' },
         },
       },
-      select: { productId: true, name: true, quantity: true, price: true },
+      select: { productId: true, name: true, quantity: true, price: true, addons: true },
     })
 
     // Agrupa por produto
     const byProduct = new Map<string, { name: string; quantity: number; revenue: number }>()
     for (const item of items) {
       const existing = byProduct.get(item.productId) ?? { name: item.name, quantity: 0, revenue: 0 }
+      const addonsTotal = Array.isArray(item.addons)
+        ? (item.addons as { price?: number }[]).reduce((s, a) => s + Number(a.price ?? 0), 0)
+        : 0
       existing.quantity += item.quantity
-      existing.revenue += Number(item.price) * item.quantity
+      existing.revenue += (Number(item.price) + addonsTotal) * item.quantity
       byProduct.set(item.productId, existing)
     }
 
@@ -186,14 +189,16 @@ const reportRoutes: FastifyPluginAsync = async (app) => {
     return { data }
   })
 
-  // ─── GET /reports/orders (histórico — paginado) ───────────────────
+  // ─── GET /reports/orders (histórico — paginado ou completo) ──────
   app.get('/orders', { preHandler: [authenticate] }, async (request) => {
-    const { period = '30d', from, to, page = '1', status } = request.query as {
-      period?: string; from?: string; to?: string; page?: string; status?: string
+    const { period = '30d', from, to, page = '1', status, all } = request.query as {
+      period?: string; from?: string; to?: string; page?: string; status?: string; all?: string
     }
     const startDate = getPeriodStart(period, from)
     const endDate = to ? new Date(to + 'T23:59:59') : new Date()
-    const skip = (parseInt(page) - 1) * 50
+    const exportAll = all === 'true'
+    const skip = exportAll ? 0 : (parseInt(page) - 1) * 50
+    const take = exportAll ? 10_000 : 50
 
     const [orders, total] = await Promise.all([
       app.prisma.order.findMany({
@@ -204,7 +209,7 @@ const reportRoutes: FastifyPluginAsync = async (app) => {
         },
         orderBy: { createdAt: 'desc' },
         skip,
-        take: 50,
+        take,
         select: {
           id: true,
           orderNumber: true,

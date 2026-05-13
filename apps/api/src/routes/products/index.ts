@@ -159,6 +159,10 @@ const productRoutes: FastifyPluginAsync = async (app) => {
     if (!existing) return reply.status(404).send({ error: 'Not Found', message: 'Produto não encontrado', statusCode: 404 })
 
     await app.prisma.product.delete({ where: { id } })
+
+    const storeSlug = await app.prisma.store.findUnique({ where: { id: request.user.storeId }, select: { slug: true } })
+    if (storeSlug) await cacheDelPattern(`menu:${storeSlug.slug}`)
+
     return reply.status(204).send()
   })
 
@@ -193,7 +197,9 @@ const productRoutes: FastifyPluginAsync = async (app) => {
         ...(body.data.stockControl !== undefined ? { stockControl: body.data.stockControl } : {}),
         ...(newQty !== undefined ? { stockQty: newQty } : {}),
         ...(body.data.minStock !== undefined ? { minStock: body.data.minStock } : {}),
+        // Reativa ao ajustar para qty > 0 ou ao desligar controle de estoque
         ...(newQty !== undefined && newQty > 0 ? { isActive: true } : {}),
+        ...(body.data.stockControl === false ? { isActive: true } : {}),
       },
     })
 

@@ -224,30 +224,35 @@ const cashRegisterRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(404).send({ error: 'Not Found', message: 'Caixa não encontrado.', statusCode: 404 })
     }
 
-    const [ordersAgg, ordersByPayment] = await Promise.all([
+    const periodFilter = { gte: register.openedAt, ...(register.closedAt ? { lte: register.closedAt } : {}) }
+
+    const [ordersAgg, ordersByPayment, cashRevenue] = await Promise.all([
       app.prisma.order.aggregate({
-        where: {
-          storeId,
-          status: { not: 'CANCELLED' },
-          createdAt: { gte: register.openedAt, ...(register.closedAt ? { lte: register.closedAt } : {}) },
-        },
+        where: { storeId, status: { not: 'CANCELLED' }, createdAt: periodFilter },
         _sum: { total: true, deliveryFee: true, discount: true },
         _count: true,
       }),
       app.prisma.order.groupBy({
         by: ['paymentMethod'],
-        where: {
-          storeId,
-          status: { not: 'CANCELLED' },
-          createdAt: { gte: register.openedAt, ...(register.closedAt ? { lte: register.closedAt } : {}) },
-        },
+        where: { storeId, status: { not: 'CANCELLED' }, createdAt: periodFilter },
         _sum: { total: true },
         _count: true,
       }),
+      // Necessário para calcular expectedBalance em caixas ainda abertos
+      register.status === 'OPEN'
+        ? app.prisma.order.aggregate({
+            where: { storeId, status: { not: 'CANCELLED' }, paymentMethod: 'CASH', createdAt: periodFilter },
+            _sum: { total: true },
+          })
+        : Promise.resolve(null),
     ])
 
     const deposits = register.transactions.filter((t) => t.type === 'DEPOSIT').reduce((s, t) => s + Number(t.amount), 0)
     const withdrawals = register.transactions.filter((t) => t.type === 'WITHDRAWAL').reduce((s, t) => s + Number(t.amount), 0)
+
+    const expectedBalance = register.status === 'OPEN' && cashRevenue
+      ? Number(register.openingBalance) + Number(cashRevenue._sum.total ?? 0) + deposits - withdrawals
+      : register.expectedBalance
 
     return reply.send({
       data: {
@@ -258,6 +263,7 @@ const cashRegisterRoutes: FastifyPluginAsync = async (app) => {
         totalDiscount: ordersAgg._sum.discount ?? 0,
         deposits,
         withdrawals,
+        expectedBalance,
         byPaymentMethod: ordersByPayment,
       },
     })
